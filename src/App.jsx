@@ -746,7 +746,7 @@ function Wizard({onSave,onCancel}){
           <div style={{display:"flex",gap:"0.35rem",flexWrap:"wrap"}}>{f.abilities.map(a=><Tag key={a.name}>{a.name}</Tag>)}</div>
         </div>)}
       </div>
-      {folk==="Greycoat"&&<div style={{marginTop:"0.85rem",...C}}>
+      {folk==="Greycoat"&&<div style={{marginTop:"0.85rem",...cardStyle()}}>
         <div style={{...FD,fontSize:"0.68rem",color:"var(--gold)",marginBottom:"0.5rem"}}>CHOOSE YOUR +1 ATTRIBUTE</div>
         <div style={{display:"flex",gap:"0.4rem",flexWrap:"wrap"}}>
           {ATTRS.map(a=><button key={a} onClick={()=>setChosenFolkAttr(a)} style={{padding:"0.28rem 0.75rem",borderRadius:3,cursor:"pointer",fontFamily:"'Fredoka One',cursive",fontSize:"0.68rem",border:`1px solid ${chosenFolkAttr===a?"var(--accent2)":"var(--border)"}`,background:chosenFolkAttr===a?"var(--accent)":"transparent",color:chosenFolkAttr===a?"white":"var(--text2)"}}>{AL[a]}</button>)}
@@ -777,7 +777,7 @@ function Wizard({onSave,onCancel}){
               <div style={{...FD,color:"var(--gold)",fontSize:"0.78rem"}}>{v}</div>
             </div>)}
           </div>
-          <div style={{display:"flex",gap:"0.35rem",flexWrap:"wrap"}}>{cl.abilities.map((a,i)=><span key={a.name} style={{...T,color:i===0?"var(--gold)":"var(--text2)"}}>Lvl{a.level}: {a.name}</span>)}</div>
+          <div style={{display:"flex",gap:"0.35rem",flexWrap:"wrap"}}>{cl.abilities.map((a,i)=><span key={a.name} style={{...FD,fontSize:"0.68rem",color:i===0?"var(--gold)":"var(--text2)"}}>Lvl{a.level}: {a.name}</span>)}</div>
         </div>)}
       </div>
     </div>}
@@ -786,7 +786,7 @@ function Wizard({onSave,onCancel}){
     {step===2&&<div className="fadeIn">
       <h2 style={{...FD,color:"var(--orange)",marginBottom:"0.4rem"}}>Set Your Attributes</h2>
       <p style={{color:"var(--text2)",fontStyle:"italic",marginBottom:"0.5rem"}}><strong style={{color:"var(--gold)"}}>Core Attribute ({AL[coreAttr]||"—"})</strong> starts at 2, all others at 1. Spend <strong style={{color:"var(--orange)"}}>2 extra points</strong> anywhere (no attribute above 2 before folk modifier). Folk modifier applied last, can push to 3.</p>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",...C,marginBottom:"1rem",padding:"0.6rem 1rem"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",...cardStyle(),marginBottom:"1rem",padding:"0.6rem 1rem"}}>
         <span style={{color:"var(--text2)",fontSize:"0.9rem"}}>Points remaining:</span>
         <span style={{...FD,fontSize:"1.2rem",color:totalSpent()>=2?"var(--muted)":"var(--gold2)"}}>{2-totalSpent()} / 2</span>
       </div>
@@ -799,7 +799,7 @@ function Wizard({onSave,onCancel}){
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"0.4rem"}}>
               <div style={{display:"flex",alignItems:"center",gap:"0.5rem"}}>
                 <span style={{...FD,fontSize:"0.74rem",color:isCore?"var(--gold)":"var(--text)"}}>{AL[a]}</span>
-                {isCore&&<Tag c="var(--gold)">CORE</Tag>}
+                {isCore&&<Tag bg="var(--gold)">CORE</Tag>}
               </div>
               <span style={{...FD,fontSize:"1.4rem",color:"var(--orange)"}}>{eff}</span>
             </div>
@@ -816,7 +816,7 @@ function Wizard({onSave,onCancel}){
           </div>;
         })}
       </div>
-      <div style={{marginTop:"0.75rem",...C,padding:"0.6rem 1rem"}}>
+      <div style={{marginTop:"0.75rem",...cardStyle(),padding:"0.6rem 1rem"}}>
         <span style={{...FD,fontSize:"0.6rem",color:"var(--muted)"}}>FINAL ARRAY: </span>
         {ATTRS.map(a=>{const ea=effectiveAttrs();return <span key={a} style={{...FD,fontSize:"0.82rem",color:"var(--gold)",marginRight:12}}>{AL[a]} {ea[a]}</span>;})}
       </div>
@@ -977,7 +977,7 @@ function Sheet({char,onUpdate,onBack}){
           <Tag>{folk.emoji} {char.folk}</Tag><Tag>{cl.icon} {char.charClass}</Tag>
           <Tag>Level {char.level}</Tag>
           {char.background?.homeland&&<Tag>📍 {char.background.homeland}</Tag>}
-          {char.legendaryTitle&&<Tag c="var(--gold)">★ {char.legendaryTitle}</Tag>}
+          {char.legendaryTitle&&<Tag bg="var(--gold)">★ {char.legendaryTitle}</Tag>}
         </div>
       </div>
       {canLU&&<Btn v="gold" onClick={()=>setShowLU(true)}>★ Level Up!</Btn>}
