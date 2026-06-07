@@ -5,7 +5,10 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prebuild": "vitest run"
   },
   "dependencies": {
     "lucide-react": "^0.383.0",
@@ -14,6 +17,8 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.1",
-    "vite": "^5.4.8"
+    "@vitest/coverage-v8": "^1.6.1",
+    "vite": "^5.4.8",
+    "vitest": "^1.6.1"
   }
 }
