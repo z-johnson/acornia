@@ -38,6 +38,12 @@ const G = `
   @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
   .fadeUp{animation:fadeUp 0.35s ease forwards;}
   .popIn{animation:popIn 0.3s ease forwards;}
+  @media print{
+    nav,.no-print{display:none!important;}
+    body{background:white!important;font-size:11px;}
+    *{box-shadow:none!important;animation:none!important;}
+    .print-sheet{padding:0.5rem!important;}
+  }
 `
 
 /* ─── DATA ───────────────────────────────────────────────────────────────── */
@@ -208,12 +214,12 @@ const BESTIARY = [
 ];
 
 /* ─── STORAGE ────────────────────────────────────────────────────────────── */
-const loadChars = async () => {
-  try { const r = await window.storage.get("acornia-v2"); return r ? JSON.parse(r.value) : []; }
+const loadChars = () => {
+  try { const raw = localStorage.getItem("acornia-v2"); return raw ? JSON.parse(raw) : []; }
   catch { return []; }
 };
-const saveChars = async (cs) => {
-  try { await window.storage.set("acornia-v2", JSON.stringify(cs)); } catch {}
+const saveChars = (cs) => {
+  try { localStorage.setItem("acornia-v2", JSON.stringify(cs)); } catch {}
 };
 const uid = () => Math.random().toString(36).slice(2,10);
 
@@ -965,12 +971,12 @@ function Sheet({char,onUpdate,onBack}){
     onUpdate(u); setShowLU(false);
   };
 
-  return <div style={{maxWidth:920,margin:"0 auto",padding:"1.5rem 1.5rem 5rem"}}>
+  return <div className="print-sheet" style={{maxWidth:920,margin:"0 auto",padding:"1.5rem 1.5rem 5rem"}}>
     {showLU&&<LevelUpModal char={char} onConfirm={handleLU} onClose={()=>setShowLU(false)}/>}
 
     {/* Header */}
     <div style={{display:"flex",alignItems:"flex-start",gap:"0.75rem",marginBottom:"1.25rem",flexWrap:"wrap"}}>
-      <button onClick={onBack} style={{background:"none",border:"none",color:"var(--text2)",cursor:"pointer",padding:"0.2rem",marginTop:5}}><ChevronRight size={17} style={{transform:"rotate(180deg)"}}/></button>
+      <button className="no-print" onClick={onBack} style={{background:"none",border:"none",color:"var(--text2)",cursor:"pointer",padding:"0.2rem",marginTop:5}}><ChevronRight size={17} style={{transform:"rotate(180deg)"}}/></button>
       <div style={{flex:1}}>
         <h1 style={{...FD,fontSize:"clamp(1.3rem,3vw,1.75rem)",color:"var(--orange)",marginBottom:"0.3rem"}}>{char.background?.name||char.name||"Unnamed Hero"}</h1>
         <div style={{display:"flex",gap:"0.4rem",flexWrap:"wrap"}}>
@@ -980,7 +986,10 @@ function Sheet({char,onUpdate,onBack}){
           {char.legendaryTitle&&<Tag bg="var(--gold)">★ {char.legendaryTitle}</Tag>}
         </div>
       </div>
-      {canLU&&<Btn v="gold" onClick={()=>setShowLU(true)}>★ Level Up!</Btn>}
+      <div className="no-print" style={{display:"flex",gap:"0.5rem"}}>
+        {canLU&&<Btn v="gold" onClick={()=>setShowLU(true)}>★ Level Up!</Btn>}
+        <Btn v="ghost" onClick={()=>window.print()}>🖨️ Print</Btn>
+      </div>
     </div>
 
     {/* EN bar */}
@@ -1182,11 +1191,10 @@ function CharList({chars,onSelect,onNew,onDelete}){
 /* ─── APP ────────────────────────────────────────────────────────────────── */
 export default function App(){
   const [page,setPage] = useState("home");
-  const [chars,setChars] = useState([]);
+  const [chars,setChars] = useState(loadChars);
   const [selId,setSelId] = useState(null);
   const [creating,setCreating] = useState(false);
 
-  useEffect(()=>{loadChars().then(setChars);},[]);
   useEffect(()=>{saveChars(chars);},[chars]);
 
   const sel = chars.find(c=>c.id===selId);
