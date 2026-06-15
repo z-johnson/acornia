@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { ChevronDown, ChevronRight, Trash2, Star, X, Check } from "lucide-react";
 import {
   FOLK, CLASSES, ATTRS, AL, AD, ALL_SKILLS, LEVEL_TABLE, OUTCOMES, CONDITIONS, LOCATIONS, BESTIARY,
-  loadChars, saveChars, uid,
+  loadChars, saveChars, charApi, uid,
   nextEN, abilsUnlocked, getAPMax, calcMaxHP, getBaseAttrs, applyFolkMod, applyLevelUp,
 } from "./lib.js";
 
@@ -989,11 +989,12 @@ function CharList({chars,onSelect,onNew,onDelete}){
 /* ─── APP ────────────────────────────────────────────────────────────────── */
 export default function App(){
   const [page,setPage] = useState("home");
-  const [chars,setChars] = useState(loadChars);
+  const [chars,setChars] = useState([]);
+  const [charsReady,setCharsReady] = useState(false);
   const [selId,setSelId] = useState(null);
   const [creating,setCreating] = useState(false);
 
-  useEffect(()=>{saveChars(chars);},[chars]);
+  useEffect(()=>{ charApi.list().then(data=>{ setChars(data); setCharsReady(true); }); },[]);
 
   const sel = chars.find(c=>c.id===selId);
   const navTo = (p) => {setPage(p);setSelId(null);setCreating(false);};
@@ -1001,10 +1002,19 @@ export default function App(){
   const saveChar = (char) => {
     const c = {...char,name:char.background?.name||char.name||"Hero"};
     setChars(cs=>{const idx=cs.findIndex(x=>x.id===c.id);if(idx>=0){const n=[...cs];n[idx]=c;return n;}return [...cs,c];});
+    charApi.upsert(c);
     setCreating(false);setSelId(c.id);setPage("chars");
   };
-  const updateChar = (u) => setChars(cs=>cs.map(c=>c.id===u.id?{...u,name:u.background?.name||u.name}:c));
-  const deleteChar = (id) => {setChars(cs=>cs.filter(c=>c.id!==id));if(selId===id)setSelId(null);};
+  const updateChar = (u) => {
+    const c = {...u,name:u.background?.name||u.name};
+    setChars(cs=>cs.map(x=>x.id===c.id?c:x));
+    charApi.upsert(c);
+  };
+  const deleteChar = (id) => {
+    setChars(cs=>cs.filter(c=>c.id!==id));
+    if(selId===id)setSelId(null);
+    charApi.remove(id);
+  };
 
   return <>
     <style>{G}</style>
@@ -1015,6 +1025,7 @@ export default function App(){
       {page==="chars"&&(
         creating?<Wizard onSave={saveChar} onCancel={()=>setCreating(false)}/>:
         sel?<Sheet char={sel} onUpdate={updateChar} onBack={()=>setSelId(null)}/>:
+        !charsReady?<div style={{padding:"3rem",textAlign:"center",color:"var(--muted)",fontFamily:"'Fredoka One',cursive",fontSize:"1.4rem"}}>Loading characters…</div>:
         <CharList chars={chars} onSelect={setSelId} onNew={()=>setCreating(true)} onDelete={deleteChar}/>
       )}
     </main>

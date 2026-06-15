@@ -175,6 +175,47 @@ export const saveChars = (cs) => {
 };
 export const uid = () => Math.random().toString(36).slice(2,10);
 
+/* ─── REMOTE API (Netlify Blobs) ─────────────────────────────────────────── */
+
+const API = "/api/characters";
+
+const isJsonResponse = (res) => (res.headers.get("content-type") || "").includes("application/json");
+
+export const charApi = {
+  async list() {
+    try {
+      const res = await fetch(API);
+      if (!res.ok || !isJsonResponse(res)) throw new Error("unavailable");
+      return res.json();
+    } catch {
+      return loadChars();
+    }
+  },
+  async upsert(char) {
+    try {
+      const res = await fetch(API, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(char),
+      });
+      if (!res.ok) throw new Error(await res.text());
+    } catch {
+      // persist locally so nothing is lost when offline / in dev
+      const cs = loadChars();
+      const idx = cs.findIndex((c) => c.id === char.id);
+      saveChars(idx >= 0 ? cs.map((c) => (c.id === char.id ? char : c)) : [...cs, char]);
+    }
+  },
+  async remove(id) {
+    try {
+      const res = await fetch(`${API}?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+      if (!res.ok && res.status !== 204) throw new Error(await res.text());
+    } catch {
+      saveChars(loadChars().filter((c) => c.id !== id));
+    }
+  },
+};
+
 /* ─── HELPERS ────────────────────────────────────────────────────────────── */
 
 /** EN required to reach the next level. Returns 9999 at max level. */
