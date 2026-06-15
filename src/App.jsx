@@ -995,6 +995,7 @@ export default function App(){
   const [creating,setCreating] = useState(false);
 
   useEffect(()=>{ charApi.list().then(data=>{ setChars(data); setCharsReady(true); }); },[]);
+  useEffect(()=>{ if(charsReady) saveChars(chars); },[chars,charsReady]);
 
   const sel = chars.find(c=>c.id===selId);
   const navTo = (p) => {setPage(p);setSelId(null);setCreating(false);};
