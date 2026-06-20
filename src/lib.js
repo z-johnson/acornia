@@ -92,6 +92,17 @@ export const CLASSES = {
     ],
     capstone:"Eagle Eye extends to melee (ignore armour on a 6). Trailblazer works in cities.",
     legendaryTitle:"Warden of the Paths"},
+  "Gilded Herald":{tag:"Voice that Moves Mountains",icon:"📯",coreAttr:"presence",hpBase:4,hpPerLevel:2,
+    role:"The beating heart of any party. A Gilded Herald wins fights through timing, conviction, and the right words at the right moment — turning allies into legends and enemies into hesitating wrecks.",
+    gear:["Polished Acorn Medallion — once per session, one ally auto-succeeds any single Presence roll","Persuasion Kit — forged letters, noble wax seal, faction crest (opens restricted doors in any city)","Throwing Knives ×3 — 1d6, Near range, concealable","Voice Horn — audible 5 zones; first blast on any enemy causes Frightened unless they pass Wits 4+","Formal Travelling Cloak — +1d6 to Persuade and Charm rolls in courts and settlements","5 Acorns"],
+    abilities:[
+      {name:"Rallying Cry",level:1,desc:"Free action, declare at the start of any combat before dice are rolled. Choose one ally in any zone — they gain +1d6 to every roll they make during the next round. Once per combat."},
+      {name:"Silver Tongue",level:2,desc:"Once per scene: target one non-hostile or neutral NPC and make a Presence roll. On 4+, they provide one piece of true information, a favour, or access to a restricted area — no combat. On a 6, they become a temporary ally for the scene."},
+      {name:"Taunt",level:4,desc:"Action. Declare a visible enemy and make a Presence roll against their Wits. On 4+, that enemy must target you with their next action and cannot target anyone else. On a 6, they also lose that action entirely as they seethe. Lasts 1 round."},
+      {name:"Legendary Decree",level:6,desc:"Once per session: deliver a speech or declaration (at least one sentence; no roll required). All allies within hearing gain +1 to all rolls for the rest of the scene. All enemies within hearing must pass Presence 4+ or suffer -1d6 on their next roll."},
+    ],
+    capstone:"Rallying Cry affects all allies simultaneously. Legendary Decree usable twice per session.",
+    legendaryTitle:"Voice Eternal"},
 };
 
 export const ATTRS = ["brawn","agility","wits","insight","presence","cunning"];

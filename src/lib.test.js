@@ -37,8 +37,8 @@ describe('FOLK data', () => {
 });
 
 describe('CLASSES data', () => {
-  it('has exactly 4 classes', () => {
-    expect(Object.keys(CLASSES)).toHaveLength(4);
+  it('has exactly 5 classes', () => {
+    expect(Object.keys(CLASSES)).toHaveLength(5);
   });
 
   it('every class has required fields', () => {
