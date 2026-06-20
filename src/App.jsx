@@ -85,6 +85,7 @@ const CLASS_C = {
   "Briar Rogue":      {bg:"#7C3AED",light:"#F5F3FF",border:"#DDD6FE",text:"#3B0764"},
   "Grove Shaman":     {bg:"#16A34A",light:"#F0FDF4",border:"#BBF7D0",text:"#14532D"},
   "Canopy Ranger":    {bg:"#0891B2",light:"#F0F9FF",border:"#BAE6FD",text:"#0C4A6E"},
+  "Gilded Herald":    {bg:"#B45309",light:"#FFFBEB",border:"#FDE68A",text:"#78350F"},
 };
 
 function Btn({children,onClick,v="primary",style={},disabled=false}){
@@ -261,7 +262,7 @@ function Landing({setPage}){
     </div>
 
     {/* ── CLASS PREVIEW ── */}
-    <Divr label="The Four Classes" emoji="⚔️"/>
+    <Divr label="The Five Classes" emoji="⚔️"/>
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:"0.75rem",marginBottom:"2rem"}}>
       {Object.entries(CLASSES).map(([name,cl])=>{
         const cc=CLASS_C[name]||{bg:"#6B7280",light:"#F8FAFC",border:"#CBD5E1",text:"#334155"};
@@ -419,7 +420,7 @@ function Rules(){
     </Accord>)}
 
     {/* Classes */}
-    <Divr label="The Four Classes"/>
+    <Divr label="The Five Classes"/>
     {Object.entries(CLASSES).map(([name,cl])=><Accord key={name} title={`${cl.icon} ${name} — ${cl.tag}`}>
       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"0.5rem",marginBottom:"0.85rem"}}>
         {[["Core Attribute",AL[cl.coreAttr]],["Starting HP",`${cl.hpBase} + ${AL[cl.coreAttr]}`],["Per Level",`+${cl.hpPerLevel} HP`]].map(([k,v])=><div key={k} style={{background:"white",borderRadius:4,padding:"0.65rem",textAlign:"center"}}>
