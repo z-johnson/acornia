@@ -1,4 +1,4 @@
-/* ─── GAME DATA ──────────────────────────────────────────────────────────── */
+/* ─── GAME DATA ────────────────────────────────────────────────────────────  */
 export const FOLK = {
   Greycoat:{tag:"The Common Heart of Acornia",emoji:"🐿️",mod:{},anyAttr:true,
     bonus:"Choose one skill at creation: +1d6 permanently on all rolls of that type",
