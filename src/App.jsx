@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { ChevronDown, ChevronRight, Trash2, Star, X, Check } from "lucide-react";
 import {
-  FOLK, CLASSES, ATTRS, AL, AD, ALL_SKILLS, LEVEL_TABLE, OUTCOMES, CONDITIONS, LOCATIONS, BESTIARY,
+  FOLK, CLASSES, ATTRS, AL, AD, ALL_SKILLS, SKILL_EXAMPLES, LEVEL_TABLE, OUTCOMES, CONDITIONS, LOCATIONS, BESTIARY,
   loadChars, saveChars, charApi, uid,
   nextEN, abilsUnlocked, getAPMax, calcMaxHP, getBaseAttrs, applyFolkMod, applyLevelUp,
 } from "./lib.js";
@@ -333,12 +333,20 @@ function Rules(){
       </div>
     </Accord>
 
-    <Accord title="📊 The Six Attributes">
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0.5rem"}}>
-        {ATTRS.map(a=><div key={a} style={{background:"white",borderRadius:4,padding:"0.7rem"}}>
-          <div style={{...FD,fontSize:"0.74rem",color:"var(--gold)",marginBottom:3}}>{AL[a]}</div>
-          <div style={{color:"var(--text2)",fontSize:"0.86rem",marginBottom:3}}>{AD[a]}</div>
-          <div style={{color:"var(--muted)",fontSize:"0.76rem",fontStyle:"italic"}}>Rating 1–3 · Roll that many d6, take highest</div>
+    <Accord title="📊 The Six Attributes & Skills">
+      <div style={{display:"grid",gap:"0.75rem"}}>
+        {ATTRS.map(a=><div key={a} style={{background:"white",borderRadius:8,padding:"0.85rem",border:"1px solid var(--border)"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:"0.3rem"}}>
+            <div style={{...FD,fontSize:"0.82rem",color:"var(--gold)"}}>{AL[a]}</div>
+            <div style={{color:"var(--muted)",fontSize:"0.72rem",fontStyle:"italic"}}>1–3 dice · take highest</div>
+          </div>
+          <div style={{color:"var(--text2)",fontSize:"0.86rem",marginBottom:"0.65rem",borderBottom:"1px solid var(--border)",paddingBottom:"0.5rem"}}>{AD[a]}</div>
+          <div style={{display:"grid",gap:"0.3rem"}}>
+            {ALL_SKILLS[a].map(sk=><div key={sk} style={{display:"flex",gap:"0.6rem",alignItems:"flex-start"}}>
+              <span style={{...FD,fontSize:"0.72rem",color:"var(--green2)",minWidth:170,flexShrink:0}}>{sk}</span>
+              <span style={{color:"var(--muted)",fontSize:"0.78rem",fontStyle:"italic",lineHeight:1.45}}>{SKILL_EXAMPLES[sk]}</span>
+            </div>)}
+          </div>
         </div>)}
       </div>
     </Accord>
@@ -473,8 +481,27 @@ function Wizard({onSave,onCancel}){
   const [chosenFolkAttr,setChosenFolkAttr] = useState("");
   const [creationSpend,setCreationSpend] = useState({});
   const [skillBonuses,setSkillBonuses] = useState([]);
+  const [hovSkill,setHovSkill] = useState(null);
   const [bg,setBg] = useState({name:"",homeland:"",age:"",personality:"",quirk:"",bond:"",motivation:""});
   const [notes,setNotes] = useState("");
+
+  // Derived skill bonus data
+  const folkBonusSkills = (FOLK[folk]||{}).bonusSkills || [];
+  const classBonusSkill = (CLASSES[charClass]||{}).bonusSkill || "";
+  const lockedSkills = new Set([...folkBonusSkills, ...(classBonusSkill?[classBonusSkill]:[])]);
+  const freeSkills = skillBonuses.filter(s => !lockedSkills.has(s));
+  const maxFree = 1;
+
+  // Keep folk/class bonus skills always pre-selected
+  useEffect(()=>{
+    const locked = [...((FOLK[folk]||{}).bonusSkills||[]),...((CLASSES[charClass]||{}).bonusSkill?[(CLASSES[charClass]||{}).bonusSkill]:[])];
+    if(!locked.length) return;
+    setSkillBonuses(cur=>{
+      const lockedSet=new Set(locked);
+      const free=cur.filter(s=>!lockedSet.has(s));
+      return [...new Set([...locked,...free])];
+    });
+  },[folk,charClass]);
 
   const folkData = FOLK[folk]||{};
   const clData = CLASSES[charClass]||{};
@@ -635,17 +662,64 @@ function Wizard({onSave,onCancel}){
     {/* Step 3 — Skills */}
     {step===3&&<div className="fadeIn">
       <h2 style={{...FD,color:"var(--orange)",marginBottom:"0.4rem"}}>Mark Your Skill Bonuses</h2>
-      <p style={{color:"var(--text2)",fontStyle:"italic",marginBottom:"0.5rem"}}>Mark skills where you have a +1d6 bonus from your folk abilities or training. Pick one trained skill of your own choice too.{folk&&<span style={{color:"var(--gold)"}}> {folk} folk: {folkData.bonus}</span>}</p>
+      <p style={{color:"var(--text2)",fontStyle:"italic",marginBottom:"0.75rem"}}>
+        Your folk and class grant automatic bonuses below. You also get <strong style={{color:"var(--gold)"}}>1 free training pick</strong> — any skill you've practised.
+        {folk&&folkData.bonus&&<span style={{color:"var(--green2)"}}> {folk}: {folkData.bonus}.</span>}
+      </p>
+      {/* Legend */}
+      <div style={{display:"flex",gap:"0.5rem",flexWrap:"wrap",alignItems:"center",marginBottom:"1rem",fontSize:"0.78rem"}}>
+        <span style={{background:"var(--green)",color:"white",borderRadius:3,padding:"0.15rem 0.55rem",fontWeight:700}}>folk bonus</span>
+        <span style={{background:"var(--purple)",color:"white",borderRadius:3,padding:"0.15rem 0.55rem",fontWeight:700}}>class bonus</span>
+        <span style={{background:"var(--gold)",color:"white",borderRadius:3,padding:"0.15rem 0.55rem",fontWeight:700}}>★ your pick</span>
+        <span style={{color:"var(--muted)",fontStyle:"italic"}}>hover a skill to see when you'd roll it</span>
+      </div>
       {ATTRS.map(attr=><div key={attr} style={{marginBottom:"0.85rem"}}>
         <div style={{...FD,fontSize:"0.68rem",color:"var(--green)",letterSpacing:"0.1em",marginBottom:"0.35rem",paddingBottom:"0.25rem",borderBottom:"1px solid var(--border)"}}>{AL[attr].toUpperCase()} SKILLS</div>
-        <div style={{display:"flex",flexWrap:"wrap",gap:"0.35rem"}}>
-          {ALL_SKILLS[attr].map(sk=>{const active=skillBonuses.includes(sk);
-            return <button key={sk} onClick={()=>setSkillBonuses(cur=>active?cur.filter(s=>s!==sk):[...cur,sk])} style={{padding:"0.25rem 0.65rem",borderRadius:3,cursor:"pointer",fontSize:"0.85rem",fontFamily:"'Crimson Pro',serif",background:active?"var(--accent)":"var(--surface)",border:`1px solid ${active?"var(--accent2)":"var(--border)"}`,color:active?"white":"var(--text2)",transition:"all 0.15s"}}>
-              {active?"★ ":""}{sk}
-            </button>;})}
+        <div style={{display:"flex",flexWrap:"wrap",gap:"0.4rem"}}>
+          {ALL_SKILLS[attr].map(sk=>{
+            const isFolk = folkBonusSkills.includes(sk);
+            const isClass = classBonusSkill === sk && !isFolk;
+            const isLocked = isFolk || isClass;
+            const isSelected = skillBonuses.includes(sk);
+            const isFree = isSelected && !isLocked;
+            const isUnavailable = !isSelected && !isLocked && freeSkills.length >= maxFree;
+            let bg,col,border,cursor;
+            if(isFolk){bg="var(--green)";col="white";border="2px solid var(--green2)";cursor="default";}
+            else if(isClass){bg="var(--purple)";col="white";border="2px solid var(--purple2)";cursor="default";}
+            else if(isFree){bg="var(--gold)";col="white";border="2px solid var(--orange2)";cursor="pointer";}
+            else if(isUnavailable){bg="var(--surface2)";col="var(--muted)";border="1px solid var(--border)";cursor="not-allowed";}
+            else{bg="var(--surface)";col="var(--text2)";border="1px solid var(--border)";cursor="pointer";}
+            const label = isFolk?"folk · "+sk : isClass?"class · "+sk : isFree?"★ "+sk : sk;
+            return <button key={sk}
+              onClick={()=>{
+                if(isLocked||isUnavailable) return;
+                setSkillBonuses(cur=>isFree?cur.filter(s=>s!==sk):[...cur,sk]);
+              }}
+              onMouseEnter={()=>setHovSkill(sk)}
+              onMouseLeave={()=>setHovSkill(null)}
+              style={{padding:"0.28rem 0.7rem",borderRadius:4,fontSize:"0.83rem",fontFamily:"'Nunito',sans-serif",fontWeight:700,
+                background:bg,border,color:col,cursor,transition:"all 0.12s",
+                opacity:isUnavailable?0.45:1,userSelect:"none"}}>
+              {label}
+            </button>;
+          })}
         </div>
       </div>)}
-      <div style={{color:"var(--muted)",fontSize:"0.82rem",fontStyle:"italic"}}>{skillBonuses.length} skill bonus{skillBonuses.length!==1?"es":""} selected.</div>
+      {/* Hover tooltip */}
+      <div style={{minHeight:"3rem",marginTop:"0.25rem"}}>
+        {hovSkill&&SKILL_EXAMPLES[hovSkill]
+          ?<div style={{...cardStyle("var(--gold)"),padding:"0.55rem 0.9rem",fontSize:"0.84rem",color:"var(--text2)",display:"flex",gap:"0.5rem",alignItems:"flex-start"}}>
+            <span style={{...FD,fontSize:"0.58rem",color:"var(--gold)",letterSpacing:"0.08em",whiteSpace:"nowrap",marginTop:2}}>EXAMPLE ROLL</span>
+            <span>{SKILL_EXAMPLES[hovSkill]}</span>
+          </div>
+          :<div style={{...cardStyle(),padding:"0.55rem 0.9rem",fontSize:"0.83rem",color:"var(--muted)",fontStyle:"italic"}}>
+            Hover a skill to see an example of when you'd roll for it.
+          </div>}
+      </div>
+      {/* Status bar */}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:"0.5rem",color:"var(--muted)",fontSize:"0.82rem",fontStyle:"italic"}}>
+        <span>{skillBonuses.length} bonus{skillBonuses.length!==1?"es":""} total ({lockedSkills.size} automatic, {freeSkills.length}/{maxFree} free pick used)</span>
+      </div>
     </div>}
 
     {/* Step 4 — Gear & Vitals */}
