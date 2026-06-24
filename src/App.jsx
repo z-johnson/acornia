@@ -534,12 +534,17 @@ function Wizard({onSave,onCancel}){
   const finish = () => {
     const ea = effectiveAttrs();
     const hp = finalHP();
+    const clGear = clData.gear || [];
+    const folkGearItems = (folkData.gear||"").split(",").map(s=>s.trim()).filter(Boolean);
+    const allStartGear = [...clGear,...folkGearItems].slice(0,10);
+    const paddedGear = [...allStartGear,...Array(Math.max(0,10-allStartGear.length)).fill("")];
+    const equippedGear = [...allStartGear.map(()=>true),...Array(Math.max(0,10-allStartGear.length)).fill(false)];
     onSave({
       id:uid(), name:bg.name||"Hero", folk, charClass, chosenFolkAttr,
       attrs:ea, skillBonuses,
       hpMax:hp, hpCurrent:hp, level:1, expNuts:0,
       apMax:2, apCurrent:2, downCount:0, conditions:[],
-      weapons:["","",""], gear:Array(10).fill(""), acorns:0,
+      weapons:["","",""], gear:paddedGear, equippedGear, acorns:0,
       prestigeSkill:"", legendaryTitle:"", notes,
       background:bg,
     });
@@ -831,6 +836,9 @@ function LevelUpModal({char,onConfirm,onClose}){
 /* ─── CHARACTER SHEET ────────────────────────────────────────────────────── */
 function Sheet({char,onUpdate,onBack}){
   const [showLU,setShowLU] = useState(false);
+  const [bgEdit,setBgEdit] = useState(false);
+  const [bgDraft,setBgDraft] = useState(null);
+  const [hovGear,setHovGear] = useState(null);
   const cl = CLASSES[char.charClass]||{};
   const folk = FOLK[char.folk]||{};
   const apMax = getAPMax(char.level);
@@ -846,6 +854,18 @@ function Sheet({char,onUpdate,onBack}){
 
   return <div className="print-sheet" style={{maxWidth:920,margin:"0 auto",padding:"1.5rem 1.5rem 5rem"}}>
     {showLU&&<LevelUpModal char={char} onConfirm={handleLU} onClose={()=>setShowLU(false)}/>}
+    {bgEdit&&bgDraft&&<Modal title="✎ Edit Background" onClose={()=>setBgEdit(false)}>
+      <div style={{display:"grid",gap:"0.75rem"}}>
+        {[["name","Character Name","What do people call you?"],["homeland","Homeland","Where do you come from?"],["age","Age / Season","Young, adult, elder?"],["personality","Personality","Two or three words."],["quirk","Quirk","One small habit or oddity."],["bond","Bond","Who or what would you protect at any cost?"],["motivation","Motivation","Why are you out here?"]].map(([key,label,ph])=><div key={key}>
+          <label style={{...FD,fontSize:"0.62rem",letterSpacing:"0.12em",color:"var(--text2)",display:"block",marginBottom:"0.3rem"}}>{label.toUpperCase()}</label>
+          <input value={bgDraft[key]||""} onChange={e=>setBgDraft(d=>({...d,[key]:e.target.value}))} placeholder={ph}/>
+        </div>)}
+        <div style={{display:"flex",gap:"0.5rem",justifyContent:"flex-end",marginTop:"0.25rem"}}>
+          <Btn v="ghost" onClick={()=>setBgEdit(false)}>Cancel</Btn>
+          <Btn v="primary" onClick={()=>{onUpdate({...char,background:bgDraft,name:bgDraft.name||char.name});setBgEdit(false);}}>Save Changes ✓</Btn>
+        </div>
+      </div>
+    </Modal>}
 
     {/* Header */}
     <div style={{display:"flex",alignItems:"flex-start",gap:"0.75rem",marginBottom:"1.25rem",flexWrap:"wrap"}}>
@@ -978,9 +998,35 @@ function Sheet({char,onUpdate,onBack}){
         <div style={{display:"flex",flexDirection:"column",gap:"0.35rem",marginBottom:"1rem"}}>
           {(char.weapons||["","",""]).map((w,i)=><input key={i} value={w} placeholder={["Primary — name / dmg / range","Secondary — name / dmg / range","Ranged / other — name / dmg / ammo"][i]} onChange={e=>{const ws=[...(char.weapons||["","",""])];ws[i]=e.target.value;upd("weapons",ws);}}/>)}
         </div>
-        <div style={{...FD,fontSize:"0.62rem",letterSpacing:"0.12em",color:"var(--muted)",marginBottom:"0.5rem"}}>GEAR & INVENTORY</div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0.3rem",marginBottom:"0.5rem"}}>
-          {(char.gear||Array(10).fill("")).slice(0,10).map((g,i)=><input key={i} value={g} placeholder={`${i+1}.`} onChange={e=>{const gs=[...(char.gear||Array(10).fill(""))];gs[i]=e.target.value;upd("gear",gs);}} style={{fontSize:"0.82rem",padding:"0.28rem 0.5rem"}}/>)}
+        <div style={{...FD,fontSize:"0.62rem",letterSpacing:"0.12em",color:"var(--muted)",marginBottom:"0.35rem"}}>GEAR & INVENTORY</div>
+        {hovGear!==null&&(char.gear||[])[hovGear]&&<div style={{background:"var(--bg2)",border:"1px solid var(--border2)",borderRadius:6,padding:"0.45rem 0.65rem",marginBottom:"0.35rem",fontSize:"0.78rem",color:"var(--text2)",lineHeight:1.5}}>
+          {(()=>{const[name,...rest]=((char.gear||[])[hovGear]||"").split(" — ");return <><strong>{name}</strong>{rest.length>0&&<> — {rest.join(" — ")}</>}</>;})()}
+        </div>}
+        {(char.equippedGear||[]).some((e,i)=>e&&(char.gear||[])[i])&&<div style={{background:"#F0FDF4",border:"1px solid var(--green)",borderRadius:6,padding:"0.45rem 0.65rem",marginBottom:"0.4rem"}}>
+          <div style={{...FD,fontSize:"0.55rem",color:"var(--green2)",marginBottom:"0.25rem"}}>EQUIPPED BONUSES</div>
+          {(char.gear||[]).map((g,i)=>{
+            if(!(char.equippedGear||[])[i]||!g) return null;
+            const [name,...rest]=g.split(" — ");
+            return <div key={i} style={{fontSize:"0.75rem",color:"var(--text2)",lineHeight:1.4,padding:"0.1rem 0"}}>
+              <span style={{fontWeight:700}}>{name}</span>{rest.length>0&&<span style={{color:"var(--muted)"}}> — {rest.join(" — ")}</span>}
+            </div>;
+          })}
+        </div>}
+        <div style={{display:"flex",flexDirection:"column",gap:"0.22rem",marginBottom:"0.5rem"}}>
+          {(char.gear||Array(10).fill("")).slice(0,10).map((g,i)=>{
+            const isEq=(char.equippedGear||[])[i];
+            return <div key={i} style={{display:"flex",alignItems:"center",gap:"0.3rem"}}>
+              <button onClick={()=>{const eq=[...(char.equippedGear||Array(10).fill(false))];eq[i]=!eq[i];upd("equippedGear",eq);}}
+                title={isEq?"Unequip":"Equip"}
+                style={{flexShrink:0,width:18,height:18,borderRadius:3,border:`2px solid ${isEq?"var(--green)":"var(--border2)"}`,background:isEq?"var(--green)":"transparent",color:"white",cursor:"pointer",fontSize:"0.6rem",display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>
+                {isEq?"✓":""}
+              </button>
+              <input value={g} placeholder={`${i+1}.`}
+                onChange={e=>{const gs=[...(char.gear||Array(10).fill(""))];gs[i]=e.target.value;upd("gear",gs);}}
+                onMouseEnter={()=>setHovGear(i)} onMouseLeave={()=>setHovGear(null)}
+                style={{fontSize:"0.8rem",padding:"0.22rem 0.45rem",flex:1,background:isEq?"#F0FDF4":"var(--surface)",borderColor:isEq?"var(--green)":"var(--border)",borderWidth:"2px"}}/>
+            </div>;
+          })}
         </div>
         <div style={{display:"flex",alignItems:"center",gap:"0.5rem"}}>
           <span style={{...FD,fontSize:"0.58rem",color:"var(--gold)",whiteSpace:"nowrap"}}>ACORNS:</span>
@@ -998,15 +1044,20 @@ function Sheet({char,onUpdate,onBack}){
     </div>}
 
     {/* Background */}
-    {(char.background?.personality||char.background?.motivation)&&<div style={{marginBottom:"1.25rem"}}>
-      <div style={{...FD,fontSize:"0.62rem",letterSpacing:"0.12em",color:"var(--muted)",marginBottom:"0.6rem"}}>CHARACTER</div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0.5rem"}}>
-        {[["Personality",char.background?.personality],["Quirk",char.background?.quirk],["Bond",char.background?.bond],["Motivation",char.background?.motivation]].filter(([,v])=>v).map(([k,v])=><div key={k} style={{...cardStyle(),padding:"0.55rem 0.75rem",borderLeft:"3px solid var(--border2)"}}>
-          <div style={{...FD,fontSize:"0.58rem",color:"var(--muted)",marginBottom:2}}>{k.toUpperCase()}</div>
-          <div style={{color:"var(--text2)",fontSize:"0.86rem"}}>{v}</div>
-        </div>)}
+    <div style={{marginBottom:"1.25rem"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"0.6rem"}}>
+        <div style={{...FD,fontSize:"0.62rem",letterSpacing:"0.12em",color:"var(--muted)"}}>CHARACTER</div>
+        <button className="no-print" onClick={()=>{setBgDraft({...(char.background||{})});setBgEdit(true);}} style={{background:"none",border:"1px solid var(--border2)",borderRadius:4,color:"var(--muted)",cursor:"pointer",fontFamily:"'Fredoka One',cursive",fontSize:"0.6rem",padding:"0.15rem 0.55rem"}}>✎ Edit</button>
       </div>
-    </div>}
+      {[["Personality",char.background?.personality],["Quirk",char.background?.quirk],["Bond",char.background?.bond],["Motivation",char.background?.motivation]].some(([,v])=>v)
+        ?<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0.5rem"}}>
+          {[["Personality",char.background?.personality],["Quirk",char.background?.quirk],["Bond",char.background?.bond],["Motivation",char.background?.motivation]].filter(([,v])=>v).map(([k,v])=><div key={k} style={{...cardStyle(),padding:"0.55rem 0.75rem",borderLeft:"3px solid var(--border2)"}}>
+            <div style={{...FD,fontSize:"0.58rem",color:"var(--muted)",marginBottom:2}}>{k.toUpperCase()}</div>
+            <div style={{color:"var(--text2)",fontSize:"0.86rem"}}>{v}</div>
+          </div>)}
+        </div>
+        :<div style={{color:"var(--muted)",fontSize:"0.83rem",fontStyle:"italic"}}>No background filled in yet — click ✎ Edit to add details.</div>}
+    </div>
 
     {/* Notes */}
     <div>
