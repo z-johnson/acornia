@@ -537,14 +537,20 @@ function Wizard({onSave,onCancel}){
     const clGear = clData.gear || [];
     const folkGearItems = (folkData.gear||"").split(",").map(s=>s.trim()).filter(Boolean);
     const allStartGear = [...clGear,...folkGearItems].slice(0,10);
-    const paddedGear = [...allStartGear,...Array(Math.max(0,10-allStartGear.length)).fill("")];
-    const equippedGear = [...allStartGear.map(()=>true),...Array(Math.max(0,10-allStartGear.length)).fill(false)];
+    let startAcorns = 0;
+    const filteredStartGear = allStartGear.filter(item=>{
+      const m=item.match(/^(\d+)\s+Acorns?$/i);
+      if(m){startAcorns+=parseInt(m[1]);return false;}
+      return true;
+    });
+    const paddedGear = [...filteredStartGear];
+    const equippedGear = filteredStartGear.map(()=>true);
     onSave({
       id:uid(), name:bg.name||"Hero", folk, charClass, chosenFolkAttr,
       attrs:ea, skillBonuses,
       hpMax:hp, hpCurrent:hp, level:1, expNuts:0,
       apMax:2, apCurrent:2, downCount:0, conditions:[],
-      weapons:["","",""], gear:paddedGear, equippedGear, acorns:0,
+      weapons:["","",""], gear:paddedGear, equippedGear, acorns:startAcorns,
       prestigeSkill:"", legendaryTitle:"", notes,
       background:bg,
     });
@@ -838,7 +844,8 @@ function Sheet({char,onUpdate,onBack}){
   const [showLU,setShowLU] = useState(false);
   const [bgEdit,setBgEdit] = useState(false);
   const [bgDraft,setBgDraft] = useState(null);
-  const [hovGear,setHovGear] = useState(null);
+  const [tooltip,setTooltip] = useState(null);
+  const [notesOpen,setNotesOpen] = useState(true);
   const cl = CLASSES[char.charClass]||{};
   const folk = FOLK[char.folk]||{};
   const apMax = getAPMax(char.level);
@@ -866,6 +873,14 @@ function Sheet({char,onUpdate,onBack}){
         </div>
       </div>
     </Modal>}
+
+    {/* Fixed tooltip — all hovers land here */}
+    {tooltip&&<div className="no-print" style={{position:"fixed",bottom:"1.5rem",right:"1.5rem",zIndex:300,
+      background:"white",border:"2px solid var(--gold)",borderRadius:12,
+      padding:"0.75rem 1rem",maxWidth:300,boxShadow:"0 8px 24px rgba(0,0,0,0.18)",pointerEvents:"none"}}>
+      <div style={{...FD,fontSize:"0.62rem",color:"var(--gold)",letterSpacing:"0.08em",marginBottom:"0.35rem"}}>{tooltip.title}</div>
+      {(tooltip.lines||[]).map((l,i)=><div key={i} style={{color:"var(--text2)",fontSize:"0.82rem",lineHeight:1.5,padding:"0.05rem 0"}}>{l}</div>)}
+    </div>}
 
     {/* Header */}
     <div style={{display:"flex",alignItems:"flex-start",gap:"0.75rem",marginBottom:"1.25rem",flexWrap:"wrap"}}>
@@ -943,10 +958,15 @@ function Sheet({char,onUpdate,onBack}){
 
     {/* Attributes */}
     <div style={{marginBottom:"1.25rem"}}>
-      <div style={{...FD,fontSize:"0.62rem",letterSpacing:"0.12em",color:"var(--muted)",marginBottom:"0.6rem"}}>ATTRIBUTES</div>
+      <div style={{...FD,fontSize:"0.62rem",letterSpacing:"0.12em",color:"var(--muted)",marginBottom:"0.6rem"}}>
+        ATTRIBUTES <span style={{fontFamily:"'Nunito',sans-serif",fontWeight:600,fontSize:"0.58rem",opacity:0.6,letterSpacing:0}}>(hover for skills)</span>
+      </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:"0.35rem"}}>
         {ATTRS.map(a=>{const v=char.attrs[a]||1,isCore=a===cl.coreAttr;
-          return <div key={a} style={{background:isCore?"#F0FDF4":"white",border:`2px solid ${isCore?"var(--green)":"var(--border)"}`,borderRadius:5,padding:"0.55rem 0.25rem",textAlign:"center"}}>
+          return <div key={a}
+            onMouseEnter={()=>setTooltip({title:`${AL[a]} Skills`,lines:ALL_SKILLS[a]})}
+            onMouseLeave={()=>setTooltip(null)}
+            style={{background:isCore?"#F0FDF4":"white",border:`2px solid ${isCore?"var(--green)":"var(--border)"}`,borderRadius:5,padding:"0.55rem 0.25rem",textAlign:"center",cursor:"default"}}>
             <div style={{...FD,fontSize:"0.52rem",color:isCore?"var(--gold)":"var(--muted)",marginBottom:3}}>{AL[a].slice(0,3).toUpperCase()}</div>
             <div style={{...FD,fontSize:"1.35rem",color:isCore?"var(--gold2)":"var(--text)",marginBottom:3}}>{v}</div>
             <Pips value={v} max={3}/>
@@ -966,103 +986,123 @@ function Sheet({char,onUpdate,onBack}){
       </div>
     </div>
 
-    {/* Two-col: abilities + gear */}
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"1rem",marginBottom:"1.25rem"}}>
-      <div>
-        <div style={{...FD,fontSize:"0.62rem",letterSpacing:"0.12em",color:"var(--muted)",marginBottom:"0.5rem"}}>{folk.emoji} FOLK ABILITIES</div>
-        {(folk.abilities||[]).map(a=><div key={a.name} style={{...cardStyle(),padding:"0.6rem 0.75rem",borderLeft:"3px solid var(--green)",marginBottom:"0.4rem"}}>
-          <div style={{...FD,fontSize:"0.65rem",color:"var(--green)",marginBottom:2}}>{a.name.toUpperCase()}</div>
-          <div style={{color:"var(--text2)",fontSize:"0.82rem",lineHeight:1.45}}>{a.desc}</div>
-        </div>)}
-        <div style={{height:"0.85rem"}}/>
-        <div style={{...FD,fontSize:"0.62rem",letterSpacing:"0.12em",color:"var(--muted)",marginBottom:"0.5rem"}}>{cl.icon} CLASS ABILITIES</div>
-        {(cl.abilities||[]).map((a,i)=>{const u=unlocked.includes(i);
-          return <div key={a.name} style={{...cardStyle(),padding:"0.6rem 0.75rem",borderLeft:`3px solid ${u?"var(--orange)":"var(--border)"}`,marginBottom:"0.4rem",opacity:u?1:0.5,background:u?"var(--surface)":"var(--bg2)"}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}>
-              <span style={{...FD,fontSize:"0.65rem",color:u?"var(--gold)":"var(--muted)"}}>{a.name.toUpperCase()}</span>
-              <Tag>{u?"✓ UNLOCKED":`Lvl ${a.level}`}</Tag>
+    {/* Main content + collapsible Notes sidebar */}
+    <div style={{display:"flex",gap:"1rem",alignItems:"flex-start"}}>
+      <div style={{flex:1,minWidth:0}}>
+
+        {/* Two-col: Abilities | Weapons + Skill Bonuses */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"1rem",marginBottom:"1.25rem"}}>
+          <div>
+            <div style={{...FD,fontSize:"0.62rem",letterSpacing:"0.12em",color:"var(--muted)",marginBottom:"0.5rem"}}>{folk.emoji} FOLK ABILITIES</div>
+            {(folk.abilities||[]).map(a=><div key={a.name} style={{...cardStyle(),padding:"0.6rem 0.75rem",borderLeft:"3px solid var(--green)",marginBottom:"0.4rem"}}>
+              <div style={{...FD,fontSize:"0.65rem",color:"var(--green)",marginBottom:2}}>{a.name.toUpperCase()}</div>
+              <div style={{color:"var(--text2)",fontSize:"0.82rem",lineHeight:1.45}}>{a.desc}</div>
+            </div>)}
+            <div style={{height:"0.85rem"}}/>
+            <div style={{...FD,fontSize:"0.62rem",letterSpacing:"0.12em",color:"var(--muted)",marginBottom:"0.5rem"}}>{cl.icon} CLASS ABILITIES</div>
+            {(cl.abilities||[]).map((a,i)=>{const u=unlocked.includes(i);
+              return <div key={a.name} style={{...cardStyle(),padding:"0.6rem 0.75rem",borderLeft:`3px solid ${u?"var(--orange)":"var(--border)"}`,marginBottom:"0.4rem",opacity:u?1:0.5,background:u?"var(--surface)":"var(--bg2)"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}>
+                  <span style={{...FD,fontSize:"0.65rem",color:u?"var(--gold)":"var(--muted)"}}>{a.name.toUpperCase()}</span>
+                  <Tag>{u?"✓ UNLOCKED":`Lvl ${a.level}`}</Tag>
+                </div>
+                <div style={{color:u?"var(--text2)":"var(--muted)",fontSize:"0.82rem",lineHeight:1.45}}>{a.desc}</div>
+              </div>;})}
+            {char.level===10&&<div style={{background:"rgba(200,150,58,0.08)",border:"1px solid var(--gold)",borderRadius:6,padding:"0.6rem 0.75rem",marginBottom:"0.4rem"}}>
+              <div style={{...FD,fontSize:"0.65rem",color:"var(--gold)",marginBottom:2}}>★ CAPSTONE — {cl.legendaryTitle}</div>
+              <div style={{color:"var(--text2)",fontSize:"0.82rem",lineHeight:1.45}}>{cl.capstone}</div>
+            </div>}
+            {char.prestigeSkill&&<div style={{...cardStyle(),padding:"0.6rem 0.75rem",borderLeft:"3px solid var(--teal)",marginBottom:"0.4rem"}}>
+              <div style={{...FD,fontSize:"0.65rem",color:"var(--green)",marginBottom:2}}>PRESTIGE — {char.prestigeSkill}</div>
+              <div style={{color:"var(--muted)",fontSize:"0.76rem"}}>Once per session</div>
+            </div>}
+          </div>
+          <div>
+            <div style={{...FD,fontSize:"0.62rem",letterSpacing:"0.12em",color:"var(--muted)",marginBottom:"0.5rem"}}>WEAPONS</div>
+            <div style={{display:"flex",flexDirection:"column",gap:"0.35rem",marginBottom:"1rem"}}>
+              {(char.weapons||["","",""]).map((w,i)=><input key={i} value={w} placeholder={["Primary — name / dmg / range","Secondary — name / dmg / range","Ranged / other — name / dmg / ammo"][i]} onChange={e=>{const ws=[...(char.weapons||["","",""])];ws[i]=e.target.value;upd("weapons",ws);}}/>)}
             </div>
-            <div style={{color:u?"var(--text2)":"var(--muted)",fontSize:"0.82rem",lineHeight:1.45}}>{a.desc}</div>
-          </div>;})}
-        {char.level===10&&<div style={{background:"rgba(200,150,58,0.08)",border:"1px solid var(--gold)",borderRadius:6,padding:"0.6rem 0.75rem",marginBottom:"0.4rem"}}>
-          <div style={{...FD,fontSize:"0.65rem",color:"var(--gold)",marginBottom:2}}>★ CAPSTONE — {cl.legendaryTitle}</div>
-          <div style={{color:"var(--text2)",fontSize:"0.82rem",lineHeight:1.45}}>{cl.capstone}</div>
-        </div>}
-        {char.prestigeSkill&&<div style={{...cardStyle(),padding:"0.6rem 0.75rem",borderLeft:"3px solid var(--teal)",marginBottom:"0.4rem"}}>
-          <div style={{...FD,fontSize:"0.65rem",color:"var(--green)",marginBottom:2}}>PRESTIGE — {char.prestigeSkill}</div>
-          <div style={{color:"var(--muted)",fontSize:"0.76rem"}}>Once per session</div>
-        </div>}
-      </div>
-      <div>
-        <div style={{...FD,fontSize:"0.62rem",letterSpacing:"0.12em",color:"var(--muted)",marginBottom:"0.5rem"}}>WEAPONS</div>
-        <div style={{display:"flex",flexDirection:"column",gap:"0.35rem",marginBottom:"1rem"}}>
-          {(char.weapons||["","",""]).map((w,i)=><input key={i} value={w} placeholder={["Primary — name / dmg / range","Secondary — name / dmg / range","Ranged / other — name / dmg / ammo"][i]} onChange={e=>{const ws=[...(char.weapons||["","",""])];ws[i]=e.target.value;upd("weapons",ws);}}/>)}
+            {(char.skillBonuses||[]).length>0&&<>
+              <div style={{...FD,fontSize:"0.62rem",letterSpacing:"0.12em",color:"var(--muted)",marginBottom:"0.5rem"}}>★ SKILL BONUSES (+1d6)</div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:"0.3rem"}}>
+                {(char.skillBonuses||[]).map(sk=><Tag key={sk} bg="var(--gold)">★ {sk}</Tag>)}
+              </div>
+            </>}
+          </div>
         </div>
-        <div style={{...FD,fontSize:"0.62rem",letterSpacing:"0.12em",color:"var(--muted)",marginBottom:"0.35rem"}}>GEAR & INVENTORY</div>
-        {hovGear!==null&&(char.gear||[])[hovGear]&&<div style={{background:"var(--bg2)",border:"1px solid var(--border2)",borderRadius:6,padding:"0.45rem 0.65rem",marginBottom:"0.35rem",fontSize:"0.78rem",color:"var(--text2)",lineHeight:1.5}}>
-          {(()=>{const[name,...rest]=((char.gear||[])[hovGear]||"").split(" — ");return <><strong>{name}</strong>{rest.length>0&&<> — {rest.join(" — ")}</>}</>;})()}
-        </div>}
-        {(char.equippedGear||[]).some((e,i)=>e&&(char.gear||[])[i])&&<div style={{background:"#F0FDF4",border:"1px solid var(--green)",borderRadius:6,padding:"0.45rem 0.65rem",marginBottom:"0.4rem"}}>
-          <div style={{...FD,fontSize:"0.55rem",color:"var(--green2)",marginBottom:"0.25rem"}}>EQUIPPED BONUSES</div>
-          {(char.gear||[]).map((g,i)=>{
-            if(!(char.equippedGear||[])[i]||!g) return null;
-            const [name,...rest]=g.split(" — ");
-            return <div key={i} style={{fontSize:"0.75rem",color:"var(--text2)",lineHeight:1.4,padding:"0.1rem 0"}}>
-              <span style={{fontWeight:700}}>{name}</span>{rest.length>0&&<span style={{color:"var(--muted)"}}> — {rest.join(" — ")}</span>}
-            </div>;
-          })}
-        </div>}
-        <div style={{display:"flex",flexDirection:"column",gap:"0.22rem",marginBottom:"0.5rem"}}>
-          {(char.gear||Array(10).fill("")).slice(0,10).map((g,i)=>{
-            const isEq=(char.equippedGear||[])[i];
-            return <div key={i} style={{display:"flex",alignItems:"center",gap:"0.3rem"}}>
-              <button onClick={()=>{const eq=[...(char.equippedGear||Array(10).fill(false))];eq[i]=!eq[i];upd("equippedGear",eq);}}
-                title={isEq?"Unequip":"Equip"}
-                style={{flexShrink:0,width:18,height:18,borderRadius:3,border:`2px solid ${isEq?"var(--green)":"var(--border2)"}`,background:isEq?"var(--green)":"transparent",color:"white",cursor:"pointer",fontSize:"0.6rem",display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>
-                {isEq?"✓":""}
-              </button>
-              <input value={g} placeholder={`${i+1}.`}
-                onChange={e=>{const gs=[...(char.gear||Array(10).fill(""))];gs[i]=e.target.value;upd("gear",gs);}}
-                onMouseEnter={()=>setHovGear(i)} onMouseLeave={()=>setHovGear(null)}
-                style={{fontSize:"0.8rem",padding:"0.22rem 0.45rem",flex:1,background:isEq?"#F0FDF4":"var(--surface)",borderColor:isEq?"var(--green)":"var(--border)",borderWidth:"2px"}}/>
-            </div>;
-          })}
-        </div>
-        <div style={{display:"flex",alignItems:"center",gap:"0.5rem"}}>
-          <span style={{...FD,fontSize:"0.58rem",color:"var(--gold)",whiteSpace:"nowrap"}}>ACORNS:</span>
-          <input type="number" value={char.acorns||0} min={0} onChange={e=>upd("acorns",Math.max(0,parseInt(e.target.value)||0))} style={{width:75}}/>
-        </div>
-      </div>
-    </div>
 
-    {/* Skill bonuses */}
-    {(char.skillBonuses||[]).length>0&&<div style={{marginBottom:"1.25rem"}}>
-      <div style={{...FD,fontSize:"0.62rem",letterSpacing:"0.12em",color:"var(--muted)",marginBottom:"0.5rem"}}>★ SKILL BONUSES (+1d6)</div>
-      <div style={{display:"flex",flexWrap:"wrap",gap:"0.3rem"}}>
-        {(char.skillBonuses||[]).map(sk=><Tag key={sk} c="var(--gold)">★ {sk}</Tag>)}
-      </div>
-    </div>}
-
-    {/* Background */}
-    <div style={{marginBottom:"1.25rem"}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"0.6rem"}}>
-        <div style={{...FD,fontSize:"0.62rem",letterSpacing:"0.12em",color:"var(--muted)"}}>CHARACTER</div>
-        <button className="no-print" onClick={()=>{setBgDraft({...(char.background||{})});setBgEdit(true);}} style={{background:"none",border:"1px solid var(--border2)",borderRadius:4,color:"var(--muted)",cursor:"pointer",fontFamily:"'Fredoka One',cursive",fontSize:"0.6rem",padding:"0.15rem 0.55rem"}}>✎ Edit</button>
-      </div>
-      {[["Personality",char.background?.personality],["Quirk",char.background?.quirk],["Bond",char.background?.bond],["Motivation",char.background?.motivation]].some(([,v])=>v)
-        ?<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0.5rem"}}>
-          {[["Personality",char.background?.personality],["Quirk",char.background?.quirk],["Bond",char.background?.bond],["Motivation",char.background?.motivation]].filter(([,v])=>v).map(([k,v])=><div key={k} style={{...cardStyle(),padding:"0.55rem 0.75rem",borderLeft:"3px solid var(--border2)"}}>
-            <div style={{...FD,fontSize:"0.58rem",color:"var(--muted)",marginBottom:2}}>{k.toUpperCase()}</div>
-            <div style={{color:"var(--text2)",fontSize:"0.86rem"}}>{v}</div>
-          </div>)}
+        {/* Character details */}
+        <div style={{marginBottom:"1.25rem"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"0.6rem"}}>
+            <div style={{...FD,fontSize:"0.62rem",letterSpacing:"0.12em",color:"var(--muted)"}}>CHARACTER</div>
+            <button className="no-print" onClick={()=>{setBgDraft({...(char.background||{})});setBgEdit(true);}} style={{background:"none",border:"1px solid var(--border2)",borderRadius:4,color:"var(--muted)",cursor:"pointer",fontFamily:"'Fredoka One',cursive",fontSize:"0.6rem",padding:"0.15rem 0.55rem"}}>✎ Edit</button>
+          </div>
+          {[["Personality",char.background?.personality],["Quirk",char.background?.quirk],["Bond",char.background?.bond],["Motivation",char.background?.motivation]].some(([,v])=>v)
+            ?<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:"0.5rem"}}>
+              {[["Personality",char.background?.personality],["Quirk",char.background?.quirk],["Bond",char.background?.bond],["Motivation",char.background?.motivation]].filter(([,v])=>v).map(([k,v])=><div key={k} style={{...cardStyle(),padding:"0.55rem 0.75rem",borderLeft:"3px solid var(--border2)"}}>
+                <div style={{...FD,fontSize:"0.58rem",color:"var(--muted)",marginBottom:2}}>{k.toUpperCase()}</div>
+                <div style={{color:"var(--text2)",fontSize:"0.86rem"}}>{v}</div>
+              </div>)}
+            </div>
+            :<div style={{color:"var(--muted)",fontSize:"0.83rem",fontStyle:"italic"}}>No background filled in yet — click ✎ Edit to add details.</div>}
         </div>
-        :<div style={{color:"var(--muted)",fontSize:"0.83rem",fontStyle:"italic"}}>No background filled in yet — click ✎ Edit to add details.</div>}
-    </div>
 
-    {/* Notes */}
-    <div>
-      <div style={{...FD,fontSize:"0.62rem",letterSpacing:"0.12em",color:"var(--muted)",marginBottom:"0.4rem"}}>SESSION NOTES</div>
-      <textarea value={char.notes||""} onChange={e=>upd("notes",e.target.value)} rows={4} placeholder="Track events, clues, contacts..." style={{resize:"vertical"}}/>
+        {/* Gear & Inventory */}
+        <div>
+          <div style={{...FD,fontSize:"0.62rem",letterSpacing:"0.12em",color:"var(--muted)",marginBottom:"0.35rem"}}>GEAR & INVENTORY</div>
+          {(char.equippedGear||[]).some((e,i)=>e&&(char.gear||[])[i])&&<div style={{background:"#F0FDF4",border:"1px solid var(--green)",borderRadius:6,padding:"0.45rem 0.65rem",marginBottom:"0.4rem"}}>
+            <div style={{...FD,fontSize:"0.55rem",color:"var(--green2)",marginBottom:"0.25rem"}}>EQUIPPED BONUSES</div>
+            {(char.gear||[]).map((g,i)=>{
+              if(!(char.equippedGear||[])[i]||!g) return null;
+              const[name,...rest]=g.split(" — ");
+              return <div key={i} style={{fontSize:"0.75rem",color:"var(--text2)",lineHeight:1.4,padding:"0.1rem 0"}}>
+                <span style={{fontWeight:700}}>{name}</span>{rest.length>0&&<span style={{color:"var(--muted)"}}> — {rest.join(" — ")}</span>}
+              </div>;
+            })}
+          </div>}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0.22rem 0.5rem",marginBottom:"0.5rem"}}>
+            {(char.gear||[]).map((g,i)=>{
+              const isEq=(char.equippedGear||[])[i];
+              return <div key={i}
+                onMouseEnter={()=>g&&setTooltip({title:g.split(" — ")[0]||g,lines:g.split(" — ").slice(1).filter(Boolean)})}
+                onMouseLeave={()=>setTooltip(null)}
+                style={{display:"flex",alignItems:"center",gap:"0.3rem"}}>
+                <button onClick={()=>{const eq=[...(char.equippedGear||[])];while(eq.length<(char.gear||[]).length)eq.push(false);eq[i]=!eq[i];upd("equippedGear",eq);}}
+                  title={isEq?"Unequip":"Equip"}
+                  style={{flexShrink:0,width:18,height:18,borderRadius:3,border:`2px solid ${isEq?"var(--green)":"var(--border2)"}`,background:isEq?"var(--green)":"transparent",color:"white",cursor:"pointer",fontSize:"0.6rem",display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>
+                  {isEq?"✓":""}
+                </button>
+                <input value={g} placeholder={`Item ${i+1}`}
+                  onChange={e=>{const gs=[...(char.gear||[])];gs[i]=e.target.value;upd("gear",gs);}}
+                  style={{fontSize:"0.8rem",padding:"0.22rem 0.45rem",flex:1,background:isEq?"#F0FDF4":"var(--surface)",borderColor:isEq?"var(--green)":"var(--border)",borderWidth:"2px"}}/>
+              </div>;
+            })}
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:"0.75rem",flexWrap:"wrap"}}>
+            <button onClick={()=>onUpdate({...char,gear:[...(char.gear||[]),""],equippedGear:[...(char.equippedGear||[]),false]})}
+              style={{padding:"0.22rem 0.75rem",borderRadius:4,border:"1px dashed var(--border2)",background:"transparent",color:"var(--muted)",cursor:"pointer",fontFamily:"'Fredoka One',cursive",fontSize:"0.68rem"}}>
+              + Add Item
+            </button>
+            <div style={{display:"flex",alignItems:"center",gap:"0.5rem",marginLeft:"auto"}}>
+              <span style={{...FD,fontSize:"0.58rem",color:"var(--gold)",whiteSpace:"nowrap"}}>ACORNS:</span>
+              <input type="number" value={char.acorns||0} min={0} onChange={e=>upd("acorns",Math.max(0,parseInt(e.target.value)||0))} style={{width:75}}/>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      {/* Notes sidebar — collapsible */}
+      <div className="no-print" style={{flexShrink:0,width:notesOpen?220:34,transition:"width 0.2s",overflow:"hidden",borderLeft:"2px solid var(--border)",paddingLeft:"0.75rem"}}>
+        <div style={{display:"flex",alignItems:"center",marginBottom:"0.4rem",gap:"0.35rem",whiteSpace:"nowrap"}}>
+          {notesOpen&&<div style={{...FD,fontSize:"0.62rem",letterSpacing:"0.12em",color:"var(--muted)",flex:1}}>SESSION NOTES</div>}
+          <button onClick={()=>setNotesOpen(o=>!o)}
+            style={{flexShrink:0,padding:"0.18rem 0.4rem",borderRadius:4,border:"1px solid var(--border2)",background:"transparent",color:"var(--muted)",cursor:"pointer",fontFamily:"'Fredoka One',cursive",fontSize:"0.6rem"}}>
+            {notesOpen?"◀":"▶"}
+          </button>
+        </div>
+        {notesOpen&&<textarea value={char.notes||""} onChange={e=>upd("notes",e.target.value)} rows={22} placeholder="Track events, clues, contacts..." style={{resize:"vertical",width:"100%",fontSize:"0.82rem"}}/>}
+      </div>
     </div>
   </div>;
 }
