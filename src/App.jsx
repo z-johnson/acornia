@@ -1,10 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { ChevronDown, ChevronRight, Trash2, Star, X, Check } from "lucide-react";
 import {
   FOLK, CLASSES, ATTRS, AL, AD, ALL_SKILLS, SKILL_EXAMPLES, LEVEL_TABLE, OUTCOMES, CONDITIONS, LOCATIONS, BESTIARY,
   loadChars, saveChars, charApi, uid,
   nextEN, abilsUnlocked, getAPMax, calcMaxHP, getBaseAttrs, applyFolkMod, applyLevelUp,
 } from "./lib.js";
+import { ITEMS, ITEM_CATEGORIES } from "./items.js";
+import { WORLD_LORE, FOLK_LORE, MONSTER_LORE, LOCATION_LORE } from "./lore.js";
 
 /* ─── GLOBAL STYLES ──────────────────────────────────────────────────────── */
 const G = `
@@ -50,6 +52,13 @@ const G = `
     .print-sheet{padding:0.5rem!important;}
   }
 `
+
+/* ─── HOOKS ──────────────────────────────────────────────────────────────── */
+function useMobile(bp=640){
+  const [m,setM]=useState(()=>typeof window!=="undefined"&&window.innerWidth<bp);
+  useEffect(()=>{const fn=()=>setM(window.innerWidth<bp);window.addEventListener("resize",fn);return()=>window.removeEventListener("resize",fn);},[bp]);
+  return m;
+}
 
 /* ─── STYLE HELPERS ─────────────────────────────────────────────────────── */
 const FD = {fontFamily:"'Fredoka One',cursive",letterSpacing:"0.03em"};
@@ -151,7 +160,7 @@ function Pips({value,max=3,onChange,color="var(--green)"}){
 
 /* ─── NAV ────────────────────────────────────────────────────────────────── */
 function Nav({page,setPage,charCount}){
-  const tabs=[{id:"home",label:"Home"},{id:"rules",label:"Rules"},{id:"chars",label:`Characters${charCount>0?` (${charCount})`:""}`}];
+  const tabs=[{id:"home",label:"Home"},{id:"rules",label:"Rules"},{id:"lore",label:"Lore"},{id:"chars",label:`Characters${charCount>0?` (${charCount})`:""}`}];
   return <nav style={{position:"sticky",top:0,zIndex:100,background:"rgba(10,18,8,0.94)",backdropFilter:"blur(10px)",borderBottom:"1px solid var(--border)"}}>
     <div style={{maxWidth:1000,margin:"0 auto",padding:"0 1.5rem",display:"flex",alignItems:"center",justifyContent:"space-between",height:54}}>
       <div style={{display:"flex",alignItems:"center",gap:"0.5rem"}}>
@@ -841,18 +850,37 @@ function LevelUpModal({char,onConfirm,onClose}){
 
 /* ─── CHARACTER SHEET ────────────────────────────────────────────────────── */
 function Sheet({char,onUpdate,onBack}){
+  const isMobile = useMobile();
   const [showLU,setShowLU] = useState(false);
   const [bgEdit,setBgEdit] = useState(false);
   const [bgDraft,setBgDraft] = useState(null);
   const [tooltip,setTooltip] = useState(null);
-  const [notesOpen,setNotesOpen] = useState(true);
+  const [notesOpen,setNotesOpen] = useState(!isMobile);
   const [diceRoll,setDiceRoll] = useState(null); // {attr, dice, results, bonus}
+  const [itemPickerOpen,setItemPickerOpen] = useState(false);
+  const [itemSearch,setItemSearch] = useState("");
+  const [itemCat,setItemCat] = useState("all");
   const cl = CLASSES[char.charClass]||{};
   const folk = FOLK[char.folk]||{};
   const apMax = getAPMax(char.level);
   const canLU = char.level<10 && char.expNuts>=nextEN(char.level);
   const upd = (k,v) => onUpdate({...char,[k]:v});
   const unlocked = abilsUnlocked(char.level);
+
+  const filteredItems = useMemo(()=>ITEMS.filter(it=>{
+    if(itemCat!=="all"&&it.category!==itemCat) return false;
+    if(!itemSearch) return true;
+    const q=itemSearch.toLowerCase();
+    return it.name.toLowerCase().includes(q)||it.desc.toLowerCase().includes(q)||(it.tags||[]).some(t=>t.includes(q));
+  }),[itemCat,itemSearch]);
+
+  const addItemFromPicker = (item) => {
+    const entry = item.desc ? `${item.name} — ${item.desc}` : item.name;
+    onUpdate({...char,gear:[...(char.gear||[]),entry],equippedGear:[...(char.equippedGear||[]),false]});
+    setItemPickerOpen(false);
+    setItemSearch("");
+    setItemCat("all");
+  };
 
   const rollAttr = (a) => {
     const v = char.attrs[a]||1;
@@ -869,7 +897,7 @@ function Sheet({char,onUpdate,onBack}){
     setShowLU(false);
   };
 
-  return <div className="print-sheet" style={{maxWidth:920,margin:"0 auto",padding:"1.5rem 1.5rem 5rem"}}>
+  return <div className="print-sheet" style={{maxWidth:920,margin:"0 auto",padding:isMobile?"0.75rem 0.6rem 4rem":"1.5rem 1.5rem 5rem"}}>
     {showLU&&<LevelUpModal char={char} onConfirm={handleLU} onClose={()=>setShowLU(false)}/>}
     {bgEdit&&bgDraft&&<Modal title="✎ Edit Background" onClose={()=>setBgEdit(false)}>
       <div style={{display:"grid",gap:"0.75rem"}}>
@@ -928,6 +956,44 @@ function Sheet({char,onUpdate,onBack}){
         fontSize:"0.72rem",letterSpacing:"0.06em",
       }}>↻ ROLL AGAIN</button>
     </div>}
+
+    {/* Item picker modal */}
+    {itemPickerOpen&&<Modal title="📦 Add to Inventory" onClose={()=>{setItemPickerOpen(false);setItemSearch("");setItemCat("all");}}>
+      <div style={{display:"flex",flexDirection:"column",gap:"0.6rem"}}>
+        <input autoFocus value={itemSearch} onChange={e=>setItemSearch(e.target.value)} placeholder="Search items, tags, or keywords…"/>
+        <div style={{display:"flex",gap:"0.3rem",flexWrap:"wrap"}}>
+          {ITEM_CATEGORIES.map(c=><button key={c.key} onClick={()=>setItemCat(c.key)}
+            style={{padding:"0.22rem 0.65rem",borderRadius:20,border:`1.5px solid ${itemCat===c.key?"var(--gold)":"var(--border)"}`,background:itemCat===c.key?"var(--gold)":"transparent",color:itemCat===c.key?"white":"var(--muted)",cursor:"pointer",fontFamily:"'Fredoka One',cursive",fontSize:"0.62rem",letterSpacing:"0.05em",transition:"all 0.15s"}}>
+            {c.label}
+          </button>)}
+        </div>
+        {/* Custom entry */}
+        <div style={{display:"flex",gap:"0.4rem",alignItems:"center",padding:"0.45rem 0.6rem",border:"1px dashed var(--border2)",borderRadius:8,background:"var(--bg2)"}}>
+          <input value={itemSearch} onChange={e=>setItemSearch(e.target.value)} placeholder="Or type a custom item name…" style={{flex:1,border:"none",background:"transparent",padding:0,fontSize:"0.86rem"}}/>
+          <button onClick={()=>{if(itemSearch.trim()){addItemFromPicker({name:itemSearch.trim(),desc:""});}}}
+            style={{padding:"0.22rem 0.7rem",borderRadius:5,border:"1.5px solid var(--green)",background:"var(--green)",color:"white",cursor:"pointer",fontFamily:"'Fredoka One',cursive",fontSize:"0.62rem",whiteSpace:"nowrap"}}>
+            + Add Custom
+          </button>
+        </div>
+        {/* Items list */}
+        <div style={{maxHeight:320,overflowY:"auto",display:"flex",flexDirection:"column",gap:"0.3rem",paddingRight:"0.2rem"}}>
+          {filteredItems.length===0&&<div style={{color:"var(--muted)",fontSize:"0.83rem",fontStyle:"italic",padding:"0.5rem 0"}}>No items match your search.</div>}
+          {filteredItems.map(item=>{
+            const catColor={weapon:"var(--orange)",armor:"var(--teal)",gear:"var(--green)",consumable:"var(--purple)",magical:"var(--gold)"}[item.category]||"var(--muted)";
+            return <div key={item.name} onClick={()=>addItemFromPicker(item)}
+              style={{display:"flex",alignItems:"flex-start",gap:"0.5rem",padding:"0.45rem 0.6rem",borderRadius:7,border:"1.5px solid var(--border)",background:"white",cursor:"pointer",transition:"all 0.12s"}}
+              onMouseEnter={e=>{e.currentTarget.style.borderColor=catColor;e.currentTarget.style.background="var(--bg2)";}}
+              onMouseLeave={e=>{e.currentTarget.style.borderColor="var(--border)";e.currentTarget.style.background="white";}}>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{...FD,fontSize:"0.78rem",color:"var(--text)",marginBottom:"0.1rem"}}>{item.name}</div>
+                <div style={{fontSize:"0.72rem",color:"var(--muted)",lineHeight:1.4}}>{item.desc}</div>
+              </div>
+              <div style={{...FD,fontSize:"0.55rem",color:catColor,whiteSpace:"nowrap",marginTop:2,textTransform:"uppercase",letterSpacing:"0.06em"}}>{item.category}</div>
+            </div>;
+          })}
+        </div>
+      </div>
+    </Modal>}
 
     {/* Fixed tooltip — all hovers land here */}
     {tooltip&&<div className="no-print" style={{position:"fixed",bottom:"1.5rem",right:"1.5rem",zIndex:300,
@@ -1016,7 +1082,7 @@ function Sheet({char,onUpdate,onBack}){
       <div style={{...FD,fontSize:"0.62rem",letterSpacing:"0.12em",color:"var(--muted)",marginBottom:"0.6rem"}}>
         ATTRIBUTES <span style={{fontFamily:"'Nunito',sans-serif",fontWeight:600,fontSize:"0.58rem",opacity:0.6,letterSpacing:0}}>(click to roll · hover for skills)</span>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:"0.35rem"}}>
+      <div style={{display:"grid",gridTemplateColumns:isMobile?"repeat(3,1fr)":"repeat(6,1fr)",gap:"0.35rem"}}>
         {ATTRS.map(a=>{const v=char.attrs[a]||1,isCore=a===cl.coreAttr;
           const bonusCount=(char.skillBonuses||[]).filter(sk=>(ALL_SKILLS[a]||[]).includes(sk)).length;
           const totalDice=v+bonusCount;
@@ -1048,11 +1114,11 @@ function Sheet({char,onUpdate,onBack}){
     </div>
 
     {/* Main content + collapsible Notes sidebar */}
-    <div style={{display:"flex",gap:"1rem",alignItems:"flex-start"}}>
+    <div style={{display:"flex",flexDirection:isMobile?"column":"row",gap:"1rem",alignItems:"flex-start"}}>
       <div style={{flex:1,minWidth:0}}>
 
         {/* Two-col: Abilities | Weapons + Skill Bonuses */}
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"1rem",marginBottom:"1.25rem"}}>
+        <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:"1rem",marginBottom:"1.25rem"}}>
           <div>
             <div style={{...FD,fontSize:"0.62rem",letterSpacing:"0.12em",color:"var(--muted)",marginBottom:"0.5rem"}}>{folk.emoji} FOLK ABILITIES</div>
             {(folk.abilities||[]).map(a=><div key={a.name} style={{...cardStyle(),padding:"0.6rem 0.75rem",borderLeft:"3px solid var(--green)",marginBottom:"0.4rem"}}>
@@ -1121,7 +1187,7 @@ function Sheet({char,onUpdate,onBack}){
               </div>;
             })}
           </div>}
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0.22rem 0.5rem",marginBottom:"0.5rem"}}>
+          <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:"0.22rem 0.5rem",marginBottom:"0.5rem"}}>
             {(char.gear||[]).map((g,i)=>{
               const isEq=(char.equippedGear||[])[i];
               return <div key={i}
@@ -1140,7 +1206,7 @@ function Sheet({char,onUpdate,onBack}){
             })}
           </div>
           <div style={{display:"flex",alignItems:"center",gap:"0.75rem",flexWrap:"wrap"}}>
-            <button onClick={()=>onUpdate({...char,gear:[...(char.gear||[]),""],equippedGear:[...(char.equippedGear||[]),false]})}
+            <button onClick={()=>setItemPickerOpen(true)}
               style={{padding:"0.22rem 0.75rem",borderRadius:4,border:"1px dashed var(--border2)",background:"transparent",color:"var(--muted)",cursor:"pointer",fontFamily:"'Fredoka One',cursive",fontSize:"0.68rem"}}>
               + Add Item
             </button>
@@ -1154,15 +1220,17 @@ function Sheet({char,onUpdate,onBack}){
       </div>
 
       {/* Notes sidebar — collapsible */}
-      <div className="no-print" style={{flexShrink:0,width:notesOpen?220:34,transition:"width 0.2s",overflow:"hidden",borderLeft:"2px solid var(--border)",paddingLeft:"0.75rem"}}>
+      <div className="no-print" style={isMobile
+        ?{width:"100%",borderTop:"2px solid var(--border)",paddingTop:"0.75rem"}
+        :{flexShrink:0,width:notesOpen?220:34,transition:"width 0.2s",overflow:"hidden",borderLeft:"2px solid var(--border)",paddingLeft:"0.75rem"}}>
         <div style={{display:"flex",alignItems:"center",marginBottom:"0.4rem",gap:"0.35rem",whiteSpace:"nowrap"}}>
-          {notesOpen&&<div style={{...FD,fontSize:"0.62rem",letterSpacing:"0.12em",color:"var(--muted)",flex:1}}>SESSION NOTES</div>}
-          <button onClick={()=>setNotesOpen(o=>!o)}
+          <div style={{...FD,fontSize:"0.62rem",letterSpacing:"0.12em",color:"var(--muted)",flex:1}}>SESSION NOTES</div>
+          {!isMobile&&<button onClick={()=>setNotesOpen(o=>!o)}
             style={{flexShrink:0,padding:"0.18rem 0.4rem",borderRadius:4,border:"1px solid var(--border2)",background:"transparent",color:"var(--muted)",cursor:"pointer",fontFamily:"'Fredoka One',cursive",fontSize:"0.6rem"}}>
             {notesOpen?"◀":"▶"}
-          </button>
+          </button>}
         </div>
-        {notesOpen&&<textarea value={char.notes||""} onChange={e=>upd("notes",e.target.value)} rows={22} placeholder="Track events, clues, contacts..." style={{resize:"vertical",width:"100%",fontSize:"0.82rem"}}/>}
+        {(isMobile||notesOpen)&&<textarea value={char.notes||""} onChange={e=>upd("notes",e.target.value)} rows={isMobile?6:22} placeholder="Track events, clues, contacts..." style={{resize:"vertical",width:"100%",fontSize:"0.82rem"}}/>}
       </div>
     </div>
   </div>;
@@ -1213,6 +1281,243 @@ function CharList({chars,onSelect,onNew,onDelete}){
   </div>;
 }
 
+/* ─── LORE PAGE ──────────────────────────────────────────────────────────── */
+const LORE_SECTIONS = [
+  {id:"world", label:"🌳 World", icon:"🌳"},
+  {id:"folk",  label:"🐿️ Folk",  icon:"🐿️"},
+  {id:"monsters", label:"⚔️ Monsters", icon:"⚔️"},
+  {id:"locations", label:"🗺️ Locations", icon:"🗺️"},
+];
+
+function LoreBody({text}){
+  // Render **bold** markdown and paragraph breaks
+  return <div style={{color:"var(--text2)",fontSize:"0.9rem",lineHeight:1.75}}>
+    {text.split("\n\n").map((para,pi)=>{
+      if(!para.trim()) return null;
+      // section headers (lines starting with **)
+      if(para.startsWith("**") && para.endsWith("**") && !para.slice(2).includes("**")){
+        return <div key={pi} style={{...FD,fontSize:"0.72rem",color:"var(--gold)",letterSpacing:"0.1em",marginTop:"1rem",marginBottom:"0.3rem"}}>{para.replace(/\*\*/g,"").toUpperCase()}</div>;
+      }
+      const parts = para.split(/(\*\*[^*]+\*\*)/g);
+      return <p key={pi} style={{marginBottom:"0.85rem"}}>
+        {parts.map((part,i)=>
+          part.startsWith("**")&&part.endsWith("**")
+            ?<strong key={i} style={{color:"var(--text)",fontWeight:700}}>{part.slice(2,-2)}</strong>
+            :<span key={i}>{part}</span>
+        )}
+      </p>;
+    })}
+  </div>;
+}
+
+function LorePage(){
+  const isMobile = useMobile();
+  const [section, setSection] = useState("world");
+  const [subId,   setSubId]   = useState(null);
+
+  // derive sub-items for current section
+  const subItems = useMemo(()=>{
+    if(section==="world")     return WORLD_LORE.chapters.map(c=>({id:c.id,label:c.icon+" "+c.title}));
+    if(section==="folk")      return Object.keys(FOLK_LORE).map(k=>({id:k,label:FOLK_LORE[k].emoji+" "+FOLK_LORE[k].title}));
+    if(section==="monsters")  return MONSTER_LORE.map(m=>({id:m.id,label:m.icon+" "+m.name}));
+    if(section==="locations") return LOCATION_LORE.map(l=>({id:l.id,label:l.icon+" "+l.name}));
+    return [];
+  },[section]);
+
+  // auto-select first sub-item when section changes
+  useEffect(()=>{ setSubId(subItems[0]?.id||null); },[section]);
+
+  const content = useMemo(()=>{
+    if(section==="world"){
+      if(!subId) return null;
+      const ch = WORLD_LORE.chapters.find(c=>c.id===subId);
+      if(!ch) return null;
+      return {type:"world-chapter", data:ch};
+    }
+    if(section==="folk"){
+      if(!subId) return null;
+      const f = FOLK_LORE[subId];
+      if(!f) return null;
+      return {type:"folk", data:f};
+    }
+    if(section==="monsters"){
+      if(!subId) return null;
+      const m = MONSTER_LORE.find(x=>x.id===subId);
+      if(!m) return null;
+      return {type:"monster", data:m};
+    }
+    if(section==="locations"){
+      if(!subId) return null;
+      const l = LOCATION_LORE.find(x=>x.id===subId);
+      if(!l) return null;
+      return {type:"location", data:l};
+    }
+    return null;
+  },[section,subId]);
+
+  const sidebarW = isMobile ? "100%" : 210;
+
+  return <div style={{maxWidth:1040,margin:"0 auto",padding:isMobile?"0.75rem 0.6rem 4rem":"1.5rem 1.5rem 5rem"}}>
+    {/* Section tabs */}
+    <div style={{display:"flex",gap:"0.4rem",flexWrap:"wrap",marginBottom:"1.25rem"}}>
+      {LORE_SECTIONS.map(s=><button key={s.id} onClick={()=>setSection(s.id)}
+        style={{padding:isMobile?"0.35rem 0.65rem":"0.4rem 1rem",borderRadius:6,border:`2px solid ${section===s.id?"var(--gold)":"var(--border)"}`,
+          background:section===s.id?"var(--gold)":"var(--surface)",color:section===s.id?"white":"var(--text2)",
+          cursor:"pointer",fontFamily:"'Fredoka One',cursive",fontSize:isMobile?"0.72rem":"0.78rem",letterSpacing:"0.06em",transition:"all 0.15s"}}>
+        {s.label}
+      </button>)}
+    </div>
+
+    {/* World intro when on world section and no chapter selected yet */}
+    {section==="world"&&!subId&&<div style={{...cardStyle(),padding:"1.25rem 1.5rem",marginBottom:"1rem"}}>
+      <div style={{...FD,fontSize:"0.62rem",color:"var(--gold)",marginBottom:"0.5rem"}}>THE WORLD OF ACORNIA</div>
+      <LoreBody text={WORLD_LORE.overview}/>
+    </div>}
+
+    <div style={{display:"flex",flexDirection:isMobile?"column":"row",gap:"1rem",alignItems:"flex-start"}}>
+
+      {/* Sidebar nav */}
+      <div style={{flexShrink:0,width:sidebarW}}>
+        {/* World overview button */}
+        {section==="world"&&<button onClick={()=>setSubId(null)}
+          style={{width:"100%",textAlign:"left",padding:"0.45rem 0.7rem",marginBottom:"0.25rem",borderRadius:5,
+            border:`1.5px solid ${subId===null?"var(--gold)":"var(--border)"}`,
+            background:subId===null?"var(--gold)":"transparent",color:subId===null?"white":"var(--muted)",
+            cursor:"pointer",fontFamily:"'Fredoka One',cursive",fontSize:"0.66rem",letterSpacing:"0.06em"}}>
+          📜 Overview
+        </button>}
+        {subItems.map(item=><button key={item.id} onClick={()=>setSubId(item.id)}
+          style={{width:"100%",textAlign:"left",padding:"0.45rem 0.7rem",marginBottom:"0.25rem",borderRadius:5,
+            border:`1.5px solid ${subId===item.id?"var(--gold)":"var(--border)"}`,
+            background:subId===item.id?"rgba(245,158,11,0.12)":"transparent",
+            color:subId===item.id?"var(--gold)":"var(--text2)",fontWeight:subId===item.id?700:400,
+            cursor:"pointer",fontFamily:"'Nunito',sans-serif",fontSize:"0.8rem",transition:"all 0.12s",
+            borderLeft:subId===item.id?"3px solid var(--gold)":"1.5px solid var(--border)"}}>
+          {item.label}
+        </button>)}
+      </div>
+
+      {/* Main content */}
+      <div style={{flex:1,minWidth:0}}>
+        {content?.type==="world-chapter"&&<div>
+          <div style={{...FD,fontSize:"1.25rem",color:"var(--orange)",marginBottom:"0.2rem"}}>{content.data.icon} {content.data.title}</div>
+          <hr style={{border:"none",borderTop:"2px solid var(--border)",margin:"0.6rem 0 1rem"}}/>
+          <LoreBody text={content.data.body}/>
+        </div>}
+
+        {content?.type==="folk"&&(()=>{const f=content.data; return <div>
+          <div style={{display:"flex",alignItems:"baseline",gap:"0.75rem",marginBottom:"0.2rem",flexWrap:"wrap"}}>
+            <div style={{...FD,fontSize:"1.3rem",color:"var(--orange)"}}>{f.emoji} {f.title}</div>
+            <div style={{...FD,fontSize:"0.72rem",color:"var(--muted)",letterSpacing:"0.05em"}}>{f.subtitle}</div>
+          </div>
+          <div style={{display:"flex",gap:"0.5rem",flexWrap:"wrap",marginBottom:"0.75rem"}}>
+            <Tag bg="var(--teal)">🏡 {f.homeland}</Tag>
+            <Tag bg="var(--purple)">{f.population}</Tag>
+          </div>
+          <hr style={{border:"none",borderTop:"2px solid var(--border)",margin:"0 0 1rem"}}/>
+
+          <LoreSectionCard title="Appearance">{f.appearance}</LoreSectionCard>
+          <LoreSectionCard title="Origin & History">{f.origin}</LoreSectionCard>
+          <LoreSectionCard title="Before the Cutting">{f.preCutting}</LoreSectionCard>
+          <LoreSectionCard title="After the Cutting">{f.postCutting}</LoreSectionCard>
+
+          <div style={{...FD,fontSize:"0.62rem",color:"var(--gold)",letterSpacing:"0.1em",marginTop:"1.25rem",marginBottom:"0.6rem"}}>★ MAJOR FIGURES</div>
+          <div style={{display:"flex",flexDirection:"column",gap:"0.6rem"}}>
+            {(f.majorFigures||[]).map(fig=>{
+              const col = fig.alignment==="Hero"?"var(--green)":fig.alignment==="Villain"?"var(--red2)":fig.alignment==="Captive"?"var(--purple)":"var(--muted)";
+              return <div key={fig.name} style={{...cardStyle(),padding:"0.75rem 1rem",borderLeft:`4px solid ${col}`}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:"0.25rem",marginBottom:"0.4rem"}}>
+                  <div style={{...FD,fontSize:"0.88rem",color:"var(--text)"}}>{fig.name}</div>
+                  <Tag bg={col} style={{fontSize:"0.55rem"}}>{fig.alignment}</Tag>
+                </div>
+                <div style={{...FD,fontSize:"0.62rem",color:col,marginBottom:"0.4rem",letterSpacing:"0.05em"}}>{fig.title}</div>
+                <div style={{color:"var(--text2)",fontSize:"0.84rem",lineHeight:1.6}}>{fig.desc}</div>
+              </div>;
+            })}
+          </div>
+        </div>;})()}
+
+        {content?.type==="monster"&&(()=>{const m=content.data; return <div>
+          <div style={{display:"flex",alignItems:"baseline",gap:"0.75rem",marginBottom:"0.2rem",flexWrap:"wrap"}}>
+            <div style={{...FD,fontSize:"1.3rem",color:"var(--orange)"}}>{m.icon} {m.name}</div>
+          </div>
+          <div style={{display:"flex",gap:"0.5rem",flexWrap:"wrap",marginBottom:"0.75rem"}}>
+            <Tag bg="var(--red2)">⚠ {m.threat}</Tag>
+            <Tag bg="var(--teal)">📍 {m.found}</Tag>
+          </div>
+          <hr style={{border:"none",borderTop:"2px solid var(--border)",margin:"0 0 1rem"}}/>
+          <LoreSectionCard title="Overview">{m.overview}</LoreSectionCard>
+          <LoreSectionCard title="Origin">{m.origin}</LoreSectionCard>
+          {(m.notableIndividuals||[]).length>0&&<>
+            <div style={{...FD,fontSize:"0.62rem",color:"var(--gold)",letterSpacing:"0.1em",marginTop:"1.25rem",marginBottom:"0.6rem"}}>★ NOTABLE INDIVIDUALS</div>
+            {m.notableIndividuals.map(ind=><div key={ind.name} style={{...cardStyle(),padding:"0.75rem 1rem",borderLeft:"4px solid var(--orange)",marginBottom:"0.5rem"}}>
+              <div style={{...FD,fontSize:"0.88rem",color:"var(--text)",marginBottom:"0.3rem"}}>{ind.name}</div>
+              <div style={{color:"var(--text2)",fontSize:"0.84rem",lineHeight:1.6}}>{ind.desc}</div>
+            </div>)}
+          </>}
+          <LoreSectionCard title="Tactics & Engagement">{m.tactics}</LoreSectionCard>
+        </div>;})()}
+
+        {content?.type==="location"&&(()=>{const l=content.data; return <div>
+          <div style={{display:"flex",alignItems:"baseline",gap:"0.75rem",marginBottom:"0.2rem",flexWrap:"wrap"}}>
+            <div style={{...FD,fontSize:"1.3rem",color:"var(--orange)"}}>{l.icon} {l.name}</div>
+          </div>
+          <div style={{display:"flex",gap:"0.5rem",flexWrap:"wrap",marginBottom:"0.75rem"}}>
+            <Tag bg="var(--red2)">⚔ {l.enemy}</Tag>
+            <Tag bg="var(--green)">📜 {l.quest}</Tag>
+            <Tag bg="var(--teal)">📍 {l.region}</Tag>
+          </div>
+          <hr style={{border:"none",borderTop:"2px solid var(--border)",margin:"0 0 1rem"}}/>
+          <LoreSectionCard title="Environment">{l.environment}</LoreSectionCard>
+          <LoreSectionCard title="History">{l.history}</LoreSectionCard>
+
+          {(l.nativePopulations||[]).length>0&&<>
+            <div style={{...FD,fontSize:"0.62rem",color:"var(--gold)",letterSpacing:"0.1em",marginTop:"1rem",marginBottom:"0.5rem"}}>👥 NATIVE POPULATIONS</div>
+            {l.nativePopulations.map(p=><div key={p.name} style={{display:"flex",gap:"0.5rem",padding:"0.4rem 0",borderBottom:"1px solid var(--border)"}}>
+              <div style={{...FD,fontSize:"0.75rem",color:"var(--text)",minWidth:160,flexShrink:0}}>{p.name}</div>
+              <div style={{color:"var(--muted)",fontSize:"0.8rem",lineHeight:1.5}}>{p.desc}</div>
+            </div>)}
+          </>}
+
+          {(l.pointsOfInterest||[]).length>0&&<>
+            <div style={{...FD,fontSize:"0.62rem",color:"var(--gold)",letterSpacing:"0.1em",marginTop:"1rem",marginBottom:"0.5rem"}}>🔍 POINTS OF INTEREST</div>
+            <div style={{display:"flex",flexDirection:"column",gap:"0.4rem"}}>
+              {l.pointsOfInterest.map(p=><div key={p.name} style={{...cardStyle(),padding:"0.6rem 0.8rem",borderLeft:"3px solid var(--teal)"}}>
+                <div style={{...FD,fontSize:"0.72rem",color:"var(--teal)",marginBottom:"0.25rem"}}>{p.name}</div>
+                <div style={{color:"var(--text2)",fontSize:"0.82rem",lineHeight:1.5}}>{p.desc}</div>
+              </div>)}
+            </div>
+          </>}
+
+          {(l.businessesAndInns||[]).length>0&&<>
+            <div style={{...FD,fontSize:"0.62rem",color:"var(--gold)",letterSpacing:"0.1em",marginTop:"1rem",marginBottom:"0.5rem"}}>🏪 SHOPS, INNS & BUSINESSES</div>
+            <div style={{display:"flex",flexDirection:"column",gap:"0.4rem"}}>
+              {l.businessesAndInns.map(b=><div key={b.name} style={{...cardStyle(),padding:"0.6rem 0.8rem",borderLeft:"3px solid var(--purple)"}}>
+                <div style={{display:"flex",gap:"0.5rem",alignItems:"baseline",marginBottom:"0.25rem",flexWrap:"wrap"}}>
+                  <div style={{...FD,fontSize:"0.72rem",color:"var(--purple)"}}>{b.name}</div>
+                  <Tag bg="var(--purple)" style={{fontSize:"0.55rem"}}>{b.type}</Tag>
+                </div>
+                <div style={{color:"var(--text2)",fontSize:"0.82rem",lineHeight:1.5}}>{b.desc}</div>
+              </div>)}
+            </div>
+          </>}
+
+          <LoreSectionCard title="🎯 Current Situation" accent="var(--orange)">{l.currentSituation}</LoreSectionCard>
+        </div>;})()}
+      </div>
+    </div>
+  </div>;
+}
+
+function LoreSectionCard({title, children, accent="var(--green)"}){
+  return <div style={{marginBottom:"1rem"}}>
+    <div style={{...FD,fontSize:"0.62rem",color:accent,letterSpacing:"0.1em",marginBottom:"0.4rem"}}>{title.toUpperCase()}</div>
+    <div style={{color:"var(--text2)",fontSize:"0.88rem",lineHeight:1.7,borderLeft:`3px solid ${accent}`,paddingLeft:"0.75rem"}}>
+      {typeof children==="string"?<LoreBody text={children}/>:children}
+    </div>
+  </div>;
+}
+
 /* ─── APP ────────────────────────────────────────────────────────────────── */
 export default function App(){
   const [page,setPage] = useState("home");
@@ -1250,6 +1555,7 @@ export default function App(){
     <main>
       {page==="home"&&<Landing setPage={navTo}/>}
       {page==="rules"&&<Rules/>}
+      {page==="lore"&&<LorePage/>}
       {page==="chars"&&(
         creating?<Wizard onSave={saveChar} onCancel={()=>setCreating(false)}/>:
         sel?<Sheet char={sel} onUpdate={updateChar} onBack={()=>setSelId(null)}/>:
