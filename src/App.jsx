@@ -6,7 +6,7 @@ import {
   nextEN, abilsUnlocked, getAPMax, calcMaxHP, getBaseAttrs, applyFolkMod, applyLevelUp,
 } from "./lib.js";
 import { ITEMS, ITEM_CATEGORIES } from "./items.js";
-import { WORLD_LORE, FOLK_LORE, MONSTER_LORE, LOCATION_LORE } from "./lore.js";
+import { WORLD_LORE, FOLK_LORE, MONSTER_LORE, LOCATION_LORE, IRON_DECREE } from "./lore.js";
 
 /* ─── GLOBAL STYLES ──────────────────────────────────────────────────────── */
 const G = `
@@ -1283,11 +1283,18 @@ function CharList({chars,onSelect,onNew,onDelete}){
 
 /* ─── LORE PAGE ──────────────────────────────────────────────────────────── */
 const LORE_SECTIONS = [
-  {id:"world", label:"🌳 World", icon:"🌳"},
-  {id:"folk",  label:"🐿️ Folk",  icon:"🐿️"},
-  {id:"monsters", label:"⚔️ Monsters", icon:"⚔️"},
-  {id:"locations", label:"🗺️ Locations", icon:"🗺️"},
+  {id:"world",    label:"🌳 World",      icon:"🌳"},
+  {id:"folk",     label:"🐿️ Folk",       icon:"🐿️"},
+  {id:"monsters", label:"⚔️ Monsters",   icon:"⚔️"},
+  {id:"locations",label:"🗺️ Locations",  icon:"🗺️"},
+  {id:"decree",   label:"📜 Iron Decree",icon:"📜"},
 ];
+
+const SEVERITY_STYLE = {
+  standard:  {bg:"var(--bg2)",      border:"var(--border)",  label:"STANDARD",  col:"var(--muted)"},
+  oppressive:{bg:"#FFF7ED",        border:"#FED7AA",        label:"OPPRESSIVE",col:"var(--orange)"},
+  severe:    {bg:"#FEF2F2",        border:"#FECACA",        label:"SEVERE",    col:"var(--red2)"},
+};
 
 function LoreBody({text}){
   // Render **bold** markdown and paragraph breaks
@@ -1321,6 +1328,7 @@ function LorePage(){
     if(section==="folk")      return Object.keys(FOLK_LORE).map(k=>({id:k,label:FOLK_LORE[k].emoji+" "+FOLK_LORE[k].title}));
     if(section==="monsters")  return MONSTER_LORE.map(m=>({id:m.id,label:m.icon+" "+m.name}));
     if(section==="locations") return LOCATION_LORE.map(l=>({id:l.id,label:l.icon+" "+l.name}));
+    if(section==="decree")    return IRON_DECREE.articles.map(a=>({id:a.id,label:`Art. ${a.number} — ${a.title}`}));
     return [];
   },[section]);
 
@@ -1352,6 +1360,12 @@ function LorePage(){
       if(!l) return null;
       return {type:"location", data:l};
     }
+    if(section==="decree"){
+      if(!subId) return {type:"decree-intro"};
+      const a = IRON_DECREE.articles.find(x=>x.id===subId);
+      if(!a) return null;
+      return {type:"decree-article", data:a};
+    }
     return null;
   },[section,subId]);
 
@@ -1372,6 +1386,18 @@ function LorePage(){
     {section==="world"&&!subId&&<div style={{...cardStyle(),padding:"1.25rem 1.5rem",marginBottom:"1rem"}}>
       <div style={{...FD,fontSize:"0.62rem",color:"var(--gold)",marginBottom:"0.5rem"}}>THE WORLD OF ACORNIA</div>
       <LoreBody text={WORLD_LORE.overview}/>
+    </div>}
+
+    {/* Decree intro banner */}
+    {section==="decree"&&<div style={{background:"#1C1410",border:"2px solid #8B0000",borderRadius:10,padding:"1rem 1.25rem",marginBottom:"1.25rem",color:"#DDD0B8"}}>
+      <div style={{display:"flex",alignItems:"center",gap:"0.65rem",marginBottom:"0.5rem"}}>
+        <span style={{fontSize:"1.4rem"}}>📜</span>
+        <div style={{...FD,fontSize:"1rem",color:"#FBBF24",letterSpacing:"0.06em"}}>THE IRON DECREE</div>
+        <div style={{...FD,fontSize:"0.6rem",color:"#8B6914",letterSpacing:"0.1em",marginLeft:"auto"}}>YEAR THREE OF THE PACIFICATION</div>
+      </div>
+      <div style={{fontSize:"0.78rem",lineHeight:1.65,color:"#C4B49A",fontStyle:"italic",borderTop:"1px solid #3C2A1A",paddingTop:"0.6rem"}}>
+        {IRON_DECREE.preamble.split("\n\n").map((p,i)=><p key={i} style={{marginBottom:"0.5rem"}}>{p}</p>)}
+      </div>
     </div>}
 
     <div style={{display:"flex",flexDirection:isMobile?"column":"row",gap:"1rem",alignItems:"flex-start"}}>
@@ -1503,6 +1529,44 @@ function LorePage(){
           </>}
 
           <LoreSectionCard title="🎯 Current Situation" accent="var(--orange)">{l.currentSituation}</LoreSectionCard>
+        </div>;})()}
+
+        {content?.type==="decree-intro"&&<div style={{color:"var(--muted)",fontSize:"0.88rem",fontStyle:"italic",padding:"2rem 0 1rem"}}>
+          ← Select an article to read its regulations.
+        </div>}
+
+        {content?.type==="decree-article"&&(()=>{const a=content.data; return <div>
+          {/* Article header */}
+          <div style={{background:"#1C1410",borderRadius:8,padding:"0.85rem 1.1rem",marginBottom:"1rem",border:`2px solid ${a.color}`}}>
+            <div style={{display:"flex",alignItems:"baseline",gap:"0.75rem",flexWrap:"wrap"}}>
+              <div style={{...FD,fontSize:"1.3rem",color:a.color}}>{a.icon} Article {a.number}</div>
+              <div style={{...FD,fontSize:"0.9rem",color:"#DDD0B8",letterSpacing:"0.05em"}}>{a.title.toUpperCase()}</div>
+            </div>
+            {a.preamble&&<div style={{fontSize:"0.78rem",color:"#C4B49A",marginTop:"0.5rem",fontStyle:"italic",lineHeight:1.6}}>{a.preamble}</div>}
+          </div>
+
+          {/* Severity legend */}
+          <div style={{display:"flex",gap:"0.5rem",flexWrap:"wrap",marginBottom:"1rem"}}>
+            {Object.entries(SEVERITY_STYLE).map(([k,s])=><div key={k} style={{display:"flex",alignItems:"center",gap:"0.3rem",padding:"0.2rem 0.55rem",borderRadius:4,background:s.bg,border:`1px solid ${s.border}`}}>
+              <div style={{width:8,height:8,borderRadius:"50%",background:s.col}}/>
+              <span style={{...FD,fontSize:"0.58rem",color:s.col,letterSpacing:"0.08em"}}>{s.label}</span>
+            </div>)}
+          </div>
+
+          {/* Regulations list */}
+          <div style={{display:"flex",flexDirection:"column",gap:"0.55rem"}}>
+            {a.regulations.map(reg=>{
+              const sty = SEVERITY_STYLE[reg.severity]||SEVERITY_STYLE.standard;
+              return <div key={reg.num} style={{borderRadius:7,border:`1.5px solid ${sty.border}`,background:sty.bg,overflow:"hidden"}}>
+                <div style={{display:"flex",alignItems:"center",gap:"0.6rem",padding:"0.45rem 0.75rem",borderBottom:`1px solid ${sty.border}`,background:reg.severity==="standard"?"rgba(0,0,0,0.03)":reg.severity==="oppressive"?"rgba(255,120,30,0.07)":"rgba(220,38,38,0.07)"}}>
+                  <div style={{...FD,fontSize:"0.7rem",color:sty.col,minWidth:32}}>{reg.num}</div>
+                  <div style={{...FD,fontSize:"0.78rem",color:"var(--text)",flex:1}}>{reg.title}</div>
+                  <div style={{...FD,fontSize:"0.55rem",color:sty.col,letterSpacing:"0.08em",background:sty.bg,border:`1px solid ${sty.border}`,borderRadius:3,padding:"0.1rem 0.4rem"}}>{sty.label}</div>
+                </div>
+                <div style={{padding:"0.55rem 0.75rem",fontSize:"0.83rem",color:"var(--text2)",lineHeight:1.65}}>{reg.text}</div>
+              </div>;
+            })}
+          </div>
         </div>;})()}
       </div>
     </div>
