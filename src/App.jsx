@@ -846,12 +846,22 @@ function Sheet({char,onUpdate,onBack}){
   const [bgDraft,setBgDraft] = useState(null);
   const [tooltip,setTooltip] = useState(null);
   const [notesOpen,setNotesOpen] = useState(true);
+  const [diceRoll,setDiceRoll] = useState(null); // {attr, dice, results, bonus}
   const cl = CLASSES[char.charClass]||{};
   const folk = FOLK[char.folk]||{};
   const apMax = getAPMax(char.level);
   const canLU = char.level<10 && char.expNuts>=nextEN(char.level);
   const upd = (k,v) => onUpdate({...char,[k]:v});
   const unlocked = abilsUnlocked(char.level);
+
+  const rollAttr = (a) => {
+    const v = char.attrs[a]||1;
+    const bonusSkills = (char.skillBonuses||[]).filter(sk=>(ALL_SKILLS[a]||[]).includes(sk));
+    const numDice = v + bonusSkills.length;
+    const results = Array.from({length:numDice},()=>Math.ceil(Math.random()*6));
+    setDiceRoll({attr:a, dice:numDice, results, bonus:bonusSkills});
+    setTooltip(null);
+  };
   const enPct = char.level<10 ? Math.min(100,(char.expNuts/nextEN(char.level))*100) : 100;
 
   const handleLU = (attrChoice,prestige) => {
@@ -873,6 +883,51 @@ function Sheet({char,onUpdate,onBack}){
         </div>
       </div>
     </Modal>}
+
+    {/* Dice roll result panel */}
+    {diceRoll&&<div className="no-print" onClick={()=>setDiceRoll(null)} style={{position:"fixed",bottom:"1.5rem",left:"1.5rem",zIndex:300,
+      background:"white",border:"2px solid var(--gold)",borderRadius:14,
+      padding:"0.9rem 1.1rem",maxWidth:320,boxShadow:"0 8px 32px rgba(0,0,0,0.2)",cursor:"pointer",minWidth:220}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"0.5rem"}}>
+        <div style={{...FD,fontSize:"0.65rem",color:"var(--gold)",letterSpacing:"0.1em"}}>{AL[diceRoll.attr].toUpperCase()} — {diceRoll.dice}d6</div>
+        <div style={{fontSize:"0.58rem",color:"var(--muted)"}}>click to dismiss</div>
+      </div>
+      {/* Dice faces */}
+      <div style={{display:"flex",gap:"0.4rem",flexWrap:"wrap",marginBottom:"0.6rem"}}>
+        {diceRoll.results.map((r,i)=>{
+          const isMax=r===6,isHigh=r>=5;
+          return <div key={i} style={{
+            width:36,height:36,borderRadius:7,display:"flex",alignItems:"center",justifyContent:"center",
+            background:isMax?"var(--gold)":isHigh?"#FEF9C3":"var(--bg2)",
+            border:`2px solid ${isMax?"var(--gold2)":isHigh?"#F59E0B":"var(--border)"}`,
+            color:isMax?"white":isHigh?"#92400E":"var(--text)",
+            fontFamily:"'Fredoka One',cursive",fontSize:"1.2rem",fontWeight:700,
+            boxShadow:isMax?"0 2px 8px rgba(245,158,11,0.4)":"none",
+            transition:"all 0.15s",
+          }}>{r}</div>;
+        })}
+      </div>
+      {/* Outcome summary */}
+      {(()=>{
+        const best=Math.max(...diceRoll.results);
+        const sixes=diceRoll.results.filter(r=>r===6).length;
+        const outcome=best>=6?"FULL SUCCESS ✦":best>=4?"PARTIAL SUCCESS":"FAILURE";
+        const outcomeColor=best>=6?"var(--green)":best>=4?"var(--gold)":"var(--red2)";
+        return <div>
+          <div style={{...FD,fontSize:"1rem",color:outcomeColor,marginBottom:"0.2rem"}}>{outcome}</div>
+          <div style={{fontSize:"0.72rem",color:"var(--muted)"}}>
+            Highest: {best}{sixes>1?` · ${sixes}× Critical!`:""}{diceRoll.bonus.length>0?` · Bonus: ${diceRoll.bonus.join(", ")}` :""}
+          </div>
+        </div>;
+      })()}
+      {/* Re-roll button */}
+      <button onClick={e=>{e.stopPropagation();rollAttr(diceRoll.attr);}} style={{
+        marginTop:"0.55rem",width:"100%",padding:"0.3rem",borderRadius:6,
+        border:"2px solid var(--border)",background:"var(--bg2)",
+        color:"var(--text2)",cursor:"pointer",fontFamily:"'Fredoka One',cursive",
+        fontSize:"0.72rem",letterSpacing:"0.06em",
+      }}>↻ ROLL AGAIN</button>
+    </div>}
 
     {/* Fixed tooltip — all hovers land here */}
     {tooltip&&<div className="no-print" style={{position:"fixed",bottom:"1.5rem",right:"1.5rem",zIndex:300,
@@ -959,18 +1014,24 @@ function Sheet({char,onUpdate,onBack}){
     {/* Attributes */}
     <div style={{marginBottom:"1.25rem"}}>
       <div style={{...FD,fontSize:"0.62rem",letterSpacing:"0.12em",color:"var(--muted)",marginBottom:"0.6rem"}}>
-        ATTRIBUTES <span style={{fontFamily:"'Nunito',sans-serif",fontWeight:600,fontSize:"0.58rem",opacity:0.6,letterSpacing:0}}>(hover for skills)</span>
+        ATTRIBUTES <span style={{fontFamily:"'Nunito',sans-serif",fontWeight:600,fontSize:"0.58rem",opacity:0.6,letterSpacing:0}}>(click to roll · hover for skills)</span>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:"0.35rem"}}>
         {ATTRS.map(a=>{const v=char.attrs[a]||1,isCore=a===cl.coreAttr;
+          const bonusCount=(char.skillBonuses||[]).filter(sk=>(ALL_SKILLS[a]||[]).includes(sk)).length;
+          const totalDice=v+bonusCount;
           return <div key={a}
+            onClick={()=>rollAttr(a)}
             onMouseEnter={()=>setTooltip({title:`${AL[a]} Skills`,lines:ALL_SKILLS[a]})}
             onMouseLeave={()=>setTooltip(null)}
-            style={{background:isCore?"#F0FDF4":"white",border:`2px solid ${isCore?"var(--green)":"var(--border)"}`,borderRadius:5,padding:"0.55rem 0.25rem",textAlign:"center",cursor:"default"}}>
+            style={{background:isCore?"#F0FDF4":"white",border:`2px solid ${diceRoll?.attr===a?"var(--gold)":isCore?"var(--green)":"var(--border)"}`,borderRadius:5,padding:"0.55rem 0.25rem",textAlign:"center",cursor:"pointer",transition:"all 0.15s",userSelect:"none"}}
+            onMouseDown={e=>e.currentTarget.style.transform="scale(0.94)"}
+            onMouseUp={e=>e.currentTarget.style.transform=""}
+            onMouseOut={e=>{e.currentTarget.style.transform="";setTooltip(null);}}>
             <div style={{...FD,fontSize:"0.52rem",color:isCore?"var(--gold)":"var(--muted)",marginBottom:3}}>{AL[a].slice(0,3).toUpperCase()}</div>
             <div style={{...FD,fontSize:"1.35rem",color:isCore?"var(--gold2)":"var(--text)",marginBottom:3}}>{v}</div>
             <Pips value={v} max={3}/>
-            <div style={{fontSize:"0.6rem",color:"var(--muted)",marginTop:3}}>{v}d6</div>
+            <div style={{fontSize:"0.6rem",color:bonusCount>0?"var(--gold)":"var(--muted)",marginTop:3,fontWeight:bonusCount>0?700:400}}>{totalDice}d6{bonusCount>0?` (+${bonusCount}★)`:""}</div>
           </div>;})}
       </div>
     </div>
