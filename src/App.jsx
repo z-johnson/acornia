@@ -882,6 +882,8 @@ function Sheet({char,onUpdate,onBack}){
     setItemCat("all");
   };
 
+  const showTip = (data) => setTooltip(t => (t && t.title===data.title) ? null : data);
+
   const rollAttr = (a) => {
     const v = Math.min(3, char.attrs[a]||1);
     const results = Array.from({length:v},()=>Math.ceil(Math.random()*6));
@@ -1112,9 +1114,10 @@ function Sheet({char,onUpdate,onBack}){
                 const hasBonus=bonusSet.has(sk);
                 const skillDice=v+(hasBonus?1:0);
                 const skillActive=diceRoll&&diceRoll.attr===a&&diceRoll.skill===sk;
+                const tipData={title:sk,lines:[SKILL_EXAMPLES[sk]].filter(Boolean)};
                 return <div key={sk} onClick={()=>rollSkill(a,sk)}
-                  onMouseEnter={()=>setTooltip({title:sk,lines:[SKILL_EXAMPLES[sk]].filter(Boolean)})}
-                  onMouseLeave={()=>setTooltip(null)}
+                  onMouseEnter={()=>!isMobile&&setTooltip(tipData)}
+                  onMouseLeave={()=>!isMobile&&setTooltip(null)}
                   style={{display:"flex",alignItems:"center",gap:"0.4rem",padding:"0.22rem 0.4rem",borderRadius:4,cursor:"pointer",userSelect:"none",
                     background:skillActive?"rgba(245,158,11,0.18)":hasBonus?"rgba(245,158,11,0.07)":"transparent",
                     border:`1px solid ${skillActive?"var(--gold)":hasBonus?"rgba(245,158,11,0.35)":"transparent"}`,transition:"all 0.12s"}}
@@ -1122,6 +1125,10 @@ function Sheet({char,onUpdate,onBack}){
                   onMouseUp={e=>e.currentTarget.style.transform=""}
                   onMouseOut={e=>e.currentTarget.style.transform=""}>
                   <div style={{fontSize:"0.74rem",color:hasBonus?"var(--text)":"var(--text2)",fontWeight:hasBonus?700:400,flex:1,lineHeight:1.3}}>{hasBonus&&"★ "}{sk}</div>
+                  {isMobile&&<button onClick={e=>{e.stopPropagation();showTip(tipData);}}
+                    style={{flexShrink:0,width:18,height:18,borderRadius:"50%",border:"1.5px solid var(--border2)",background:"white",color:"var(--muted)",fontSize:"0.6rem",display:"flex",alignItems:"center",justifyContent:"center",padding:0,cursor:"pointer"}}>
+                    ⓘ
+                  </button>}
                   <div style={{...FD,fontSize:"0.6rem",color:hasBonus?"var(--gold)":"var(--muted)",whiteSpace:"nowrap"}}>{skillDice}d6</div>
                 </div>;
               })}
@@ -1218,9 +1225,10 @@ function Sheet({char,onUpdate,onBack}){
           <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:"0.22rem 0.5rem",marginBottom:"0.5rem"}}>
             {(char.gear||[]).map((g,i)=>{
               const isEq=(char.equippedGear||[])[i];
+              const tipData=g?{title:g.split(" — ")[0]||g,lines:g.split(" — ").slice(1).filter(Boolean)}:null;
               return <div key={i}
-                onMouseEnter={()=>g&&setTooltip({title:g.split(" — ")[0]||g,lines:g.split(" — ").slice(1).filter(Boolean)})}
-                onMouseLeave={()=>setTooltip(null)}
+                onMouseEnter={()=>!isMobile&&tipData&&setTooltip(tipData)}
+                onMouseLeave={()=>!isMobile&&setTooltip(null)}
                 style={{display:"flex",alignItems:"center",gap:"0.3rem"}}>
                 <button onClick={()=>{const eq=[...(char.equippedGear||[])];while(eq.length<(char.gear||[]).length)eq.push(false);eq[i]=!eq[i];upd("equippedGear",eq);}}
                   title={isEq?"Unequip":"Equip"}
@@ -1230,6 +1238,10 @@ function Sheet({char,onUpdate,onBack}){
                 <input value={g} placeholder={`Item ${i+1}`}
                   onChange={e=>{const gs=[...(char.gear||[])];gs[i]=e.target.value;upd("gear",gs);}}
                   style={{fontSize:"0.8rem",padding:"0.22rem 0.45rem",flex:1,background:isEq?"#F0FDF4":"var(--surface)",borderColor:isEq?"var(--green)":"var(--border)",borderWidth:"2px"}}/>
+                {isMobile&&<button onClick={()=>tipData&&showTip(tipData)}
+                  style={{flexShrink:0,width:22,height:22,borderRadius:"50%",border:"1.5px solid var(--border2)",background:"white",color:"var(--muted)",fontSize:"0.65rem",display:"flex",alignItems:"center",justifyContent:"center",padding:0,cursor:"pointer"}}>
+                  ⓘ
+                </button>}
               </div>;
             })}
           </div>
