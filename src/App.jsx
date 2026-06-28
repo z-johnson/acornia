@@ -883,11 +883,18 @@ function Sheet({char,onUpdate,onBack}){
   };
 
   const rollAttr = (a) => {
-    const v = char.attrs[a]||1;
-    const bonusSkills = (char.skillBonuses||[]).filter(sk=>(ALL_SKILLS[a]||[]).includes(sk));
-    const numDice = v + bonusSkills.length;
+    const v = Math.min(3, char.attrs[a]||1);
+    const results = Array.from({length:v},()=>Math.ceil(Math.random()*6));
+    setDiceRoll({attr:a, skill:null, dice:v, results, bonus:[]});
+    setTooltip(null);
+  };
+
+  const rollSkill = (a, skill) => {
+    const v = Math.min(3, char.attrs[a]||1);
+    const hasBonus = (char.skillBonuses||[]).includes(skill);
+    const numDice = v + (hasBonus?1:0);
     const results = Array.from({length:numDice},()=>Math.ceil(Math.random()*6));
-    setDiceRoll({attr:a, dice:numDice, results, bonus:bonusSkills});
+    setDiceRoll({attr:a, skill, dice:numDice, results, bonus:hasBonus?[skill]:[]});
     setTooltip(null);
   };
   const enPct = char.level<10 ? Math.min(100,(char.expNuts/nextEN(char.level))*100) : 100;
@@ -917,7 +924,7 @@ function Sheet({char,onUpdate,onBack}){
       background:"white",border:"2px solid var(--gold)",borderRadius:14,
       padding:"0.9rem 1.1rem",maxWidth:320,boxShadow:"0 8px 32px rgba(0,0,0,0.2)",cursor:"pointer",minWidth:220}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"0.5rem"}}>
-        <div style={{...FD,fontSize:"0.65rem",color:"var(--gold)",letterSpacing:"0.1em"}}>{AL[diceRoll.attr].toUpperCase()} — {diceRoll.dice}d6</div>
+        <div style={{...FD,fontSize:"0.65rem",color:"var(--gold)",letterSpacing:"0.1em"}}>{diceRoll.skill?diceRoll.skill.toUpperCase():AL[diceRoll.attr].toUpperCase()} — {diceRoll.dice}d6</div>
         <div style={{fontSize:"0.58rem",color:"var(--muted)"}}>click to dismiss</div>
       </div>
       {/* Dice faces */}
@@ -949,7 +956,7 @@ function Sheet({char,onUpdate,onBack}){
         </div>;
       })()}
       {/* Re-roll button */}
-      <button onClick={e=>{e.stopPropagation();rollAttr(diceRoll.attr);}} style={{
+      <button onClick={e=>{e.stopPropagation();diceRoll.skill?rollSkill(diceRoll.attr,diceRoll.skill):rollAttr(diceRoll.attr);}} style={{
         marginTop:"0.55rem",width:"100%",padding:"0.3rem",borderRadius:6,
         border:"2px solid var(--border)",background:"var(--bg2)",
         color:"var(--text2)",cursor:"pointer",fontFamily:"'Fredoka One',cursive",
@@ -1080,24 +1087,45 @@ function Sheet({char,onUpdate,onBack}){
     {/* Attributes */}
     <div style={{marginBottom:"1.25rem"}}>
       <div style={{...FD,fontSize:"0.62rem",letterSpacing:"0.12em",color:"var(--muted)",marginBottom:"0.6rem"}}>
-        ATTRIBUTES <span style={{fontFamily:"'Nunito',sans-serif",fontWeight:600,fontSize:"0.58rem",opacity:0.6,letterSpacing:0}}>(click to roll · hover for skills)</span>
+        ATTRIBUTES & SKILLS <span style={{fontFamily:"'Nunito',sans-serif",fontWeight:600,fontSize:"0.58rem",opacity:0.6,letterSpacing:0}}>(click attribute or skill to roll)</span>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:isMobile?"repeat(3,1fr)":"repeat(6,1fr)",gap:"0.35rem"}}>
-        {ATTRS.map(a=>{const v=char.attrs[a]||1,isCore=a===cl.coreAttr;
-          const bonusCount=(char.skillBonuses||[]).filter(sk=>(ALL_SKILLS[a]||[]).includes(sk)).length;
-          const totalDice=v+bonusCount;
-          return <div key={a}
-            onClick={()=>rollAttr(a)}
-            onMouseEnter={()=>setTooltip({title:`${AL[a]} Skills`,lines:ALL_SKILLS[a]})}
-            onMouseLeave={()=>setTooltip(null)}
-            style={{background:isCore?"#F0FDF4":"white",border:`2px solid ${diceRoll?.attr===a?"var(--gold)":isCore?"var(--green)":"var(--border)"}`,borderRadius:5,padding:"0.55rem 0.25rem",textAlign:"center",cursor:"pointer",transition:"all 0.15s",userSelect:"none"}}
-            onMouseDown={e=>e.currentTarget.style.transform="scale(0.94)"}
-            onMouseUp={e=>e.currentTarget.style.transform=""}
-            onMouseOut={e=>{e.currentTarget.style.transform="";setTooltip(null);}}>
-            <div style={{...FD,fontSize:"0.52rem",color:isCore?"var(--gold)":"var(--muted)",marginBottom:3}}>{AL[a].slice(0,3).toUpperCase()}</div>
-            <div style={{...FD,fontSize:"1.35rem",color:isCore?"var(--gold2)":"var(--text)",marginBottom:3}}>{v}</div>
-            <Pips value={v} max={3}/>
-            <div style={{fontSize:"0.6rem",color:bonusCount>0?"var(--gold)":"var(--muted)",marginTop:3,fontWeight:bonusCount>0?700:400}}>{totalDice}d6{bonusCount>0?` (+${bonusCount}★)`:""}</div>
+      <div style={{display:"grid",gridTemplateColumns:isMobile?"repeat(2,1fr)":"repeat(3,1fr)",gap:"0.5rem"}}>
+        {ATTRS.map(a=>{const v=Math.min(3,char.attrs[a]||1),isCore=a===cl.coreAttr;
+          const skills=ALL_SKILLS[a]||[];
+          const bonusSet=new Set((char.skillBonuses||[]).filter(sk=>skills.includes(sk)));
+          const attrActive=diceRoll&&diceRoll.attr===a&&!diceRoll.skill;
+          return <div key={a} style={{background:isCore?"#F0FDF4":"white",border:`2px solid ${isCore?"var(--green)":"var(--border)"}`,borderRadius:7,padding:"0.6rem 0.65rem"}}>
+            {/* Attribute header — click to roll attribute alone */}
+            <div onClick={()=>rollAttr(a)}
+              style={{display:"flex",alignItems:"center",gap:"0.5rem",cursor:"pointer",userSelect:"none",paddingBottom:"0.45rem",marginBottom:"0.4rem",borderBottom:"1px solid var(--border)",borderRadius:4,transition:"all 0.1s",background:attrActive?"rgba(245,158,11,0.12)":"transparent"}}
+              onMouseDown={e=>e.currentTarget.style.opacity="0.7"}
+              onMouseUp={e=>e.currentTarget.style.opacity="1"}
+              onMouseOut={e=>e.currentTarget.style.opacity="1"}>
+              <div style={{...FD,fontSize:"0.62rem",color:isCore?"var(--gold)":"var(--muted)",letterSpacing:"0.05em",flex:1}}>{AL[a].toUpperCase()}</div>
+              <div style={{...FD,fontSize:"1.1rem",color:isCore?"var(--gold2)":"var(--text)"}}>{v}</div>
+              <Pips value={v} max={3}/>
+              <div style={{...FD,fontSize:"0.62rem",color:attrActive?"var(--gold)":"var(--muted)",minWidth:30,textAlign:"right"}}>{v}d6</div>
+            </div>
+            {/* Skills list */}
+            <div style={{display:"flex",flexDirection:"column",gap:"0.18rem"}}>
+              {skills.map(sk=>{
+                const hasBonus=bonusSet.has(sk);
+                const skillDice=v+(hasBonus?1:0);
+                const skillActive=diceRoll&&diceRoll.attr===a&&diceRoll.skill===sk;
+                return <div key={sk} onClick={()=>rollSkill(a,sk)}
+                  onMouseEnter={()=>setTooltip({title:sk,lines:[SKILL_EXAMPLES[sk]].filter(Boolean)})}
+                  onMouseLeave={()=>setTooltip(null)}
+                  style={{display:"flex",alignItems:"center",gap:"0.4rem",padding:"0.22rem 0.4rem",borderRadius:4,cursor:"pointer",userSelect:"none",
+                    background:skillActive?"rgba(245,158,11,0.18)":hasBonus?"rgba(245,158,11,0.07)":"transparent",
+                    border:`1px solid ${skillActive?"var(--gold)":hasBonus?"rgba(245,158,11,0.35)":"transparent"}`,transition:"all 0.12s"}}
+                  onMouseDown={e=>e.currentTarget.style.transform="scale(0.97)"}
+                  onMouseUp={e=>e.currentTarget.style.transform=""}
+                  onMouseOut={e=>e.currentTarget.style.transform=""}>
+                  <div style={{fontSize:"0.74rem",color:hasBonus?"var(--text)":"var(--text2)",fontWeight:hasBonus?700:400,flex:1,lineHeight:1.3}}>{hasBonus&&"★ "}{sk}</div>
+                  <div style={{...FD,fontSize:"0.6rem",color:hasBonus?"var(--gold)":"var(--muted)",whiteSpace:"nowrap"}}>{skillDice}d6</div>
+                </div>;
+              })}
+            </div>
           </div>;})}
       </div>
     </div>
